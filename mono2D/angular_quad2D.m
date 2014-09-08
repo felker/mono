@@ -8,6 +8,7 @@ function [num_rays,direction_cosines,point_weights,level_weights] = angular_quad
 % point_weights
 % level_weights
 %References: B.G. Carlson 1963, Bruls 1999
+format long; 
 %For 2D, we assume the physical domain is homogeneous in the z-axis.
 %Therefore, we only do the positive hemisphere about the midplane, where
 %the z-axis is the polar axis. 
@@ -102,6 +103,8 @@ assert(all((abs(sum((direction_cosines.*direction_cosines),2) - ones(num_rays,1)
 %quiver3(zeros(ray_count,1),zeros(ray_count,1),zeros(ray_count,1), ...
  %   direction_cosines(1:ray_count,1),direction_cosines(1:ray_count,2), ...
   %  direction_cosines(1:ray_count,3)); 
+%test projection onto z=0 plane
+%quiver(zeros(num_rays,1),zeros(num_rays,1),direction_cosines(:,1),direction_cosines(:,2)); 
 
 %Use Bruls method to calculate families of weights. Solve system of eqs
 wpf = pmat(1:N/2-1,1:N/2-1)\level_weights(1:N/2-1);
