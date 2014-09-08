@@ -8,7 +8,7 @@ clear all;
 close all;
 nx = 100;
 ny = 100;
-ntheta = 4; %quadarture is only defined up to 12 in each direction, must be even
+ntheta = 2; %quadarture is only defined up to 12 in each direction, must be even
 %order of the quadrature, N, refers to the number of mu-levels in the interval [-1, 1].
 
 lx = 1.0;
@@ -47,11 +47,12 @@ rho_a = zeros(nx,ny);
 %Scattering opacities
 rho_s = zeros(nx,ny);
 
-
 %Open questions: how does one convert from the thermal source function to
 %rho_a, rho_s for LTE
+
 % How can we ensure that the cfl number per angle is the same without
 % changing the timestep?
+
 % Why is stability CFL=0.5?
 
 %------------------------ PRE-TIMESTEPPING SETUP ------------------ %
@@ -99,23 +100,21 @@ for i=1:nt
         i_flux = upwind_interpolate2D(intensity(:,:,j),method,mu(j,:),dt,dx,dy,c); 
         intensity(:,:,j) = intensity(:,:,j) + ...
             alpha.*(mu(j,1)*dt*c/dx*(i_flux(:,:,1) - circshift(i_flux(:,:,1),[-1, 0, 0])) + ...
-            mu(j,2)*dt*c/dy*(i_flux(:,:,2) - circshift(i_flux(:,:,2),[0 -1 0 ])));  
-        
+            mu(j,2)*dt*c/dy*(i_flux(:,:,2) - circshift(i_flux(:,:,2),[0 -1 0 ])));        
         %Advection with fluid at fluid velocity
         %Calculate current mean intensity
-        mean_intensity = zeros(nx,ny);
-        for k=1:nx
-            for l=1:ny
-                for m=1:na
-                    mean_intensity(k,l) = mean_intensity(k,l) + intensity(k,l,m)*pw(m);
-                end
-            end
-        end
-        i_flux = upwind_interpolate2D(3*nv(:,:,j).*mean_intensity,method,mu(j,:),dt,dx,dy,c); 
+        for i=1:nx
+            for j=1:ny
+                for k=1:na
+                    mean_intensity
+        i_flux = upwind_interpolate2D(intensity(:,:,j),method,mu(j,:),dt,dx,dy,c); 
         intensity(:,:,j) = intensity(:,:,j) + ...
             alpha.*(mu(j,1)*dt*c/dx*(i_flux(:,:,1) - circshift(i_flux(:,:,1),[-1, 0, 0])) + ...
             mu(j,2)*dt*c/dy*(i_flux(:,:,2) - circshift(i_flux(:,:,2),[0 -1 0 ])));   
-    return;
+
+    
+
+
         %Substep #2: Implicit absorption source terms
 
         %Substep #3: Implicit scattering source terms

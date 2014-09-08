@@ -5,7 +5,6 @@ function [ ip ] = permutation( i,j,k,pl,np )
     
   for l=1:np
     for m=1:3
-
       if (i == pl(l,m))
         for n=1:3
           if(n ~= m)

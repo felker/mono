@@ -26,7 +26,7 @@ ordinates = zeros(1,N/2);
 %Choice of first cosine is arbitary. In analogy to Gaussian quadrature:
 ordinates(1) = sqrt(1/(3*(N-1))); 
 %In 3D space,
-delta_cos =(1-3*ordinates(1)^2)* 2/(N-2) 
+delta_cos =(1-3*ordinates(1)^2)* 2/(N-2); 
 
 for i=2:N/2
     ordinates(i) = sqrt(ordinates(1)^2 + (i-1)*delta_cos);
@@ -104,7 +104,6 @@ assert(all((abs(sum((direction_cosines.*direction_cosines),2) - ones(num_rays,1)
   %  direction_cosines(1:ray_count,3)); 
 
 %Use Bruls method to calculate families of weights. Solve system of eqs
-inv(pmat(1:N/2-1,1:N/2-1))
 wpf = pmat(1:N/2-1,1:N/2-1)\level_weights(1:N/2-1);
 for i=1:num_rays_per_octant %each quadrant, normalize %Is this ordered correctly?
     point_weights(i) = wpf(plab(i))*0.125;
