@@ -11,12 +11,12 @@ switch method
     case 'donor'
         %Donor Cell method, first order accurate
         if mu(1) > 0
-            i_flux(:,:,1) = circshift(intensity(:,:),[+1,0]); 
+            i_flux(:,:,1) = circshift(intensity(:,:),[0,1]); 
         elseif mu(1) < 0
             i_flux(:,:,1) = intensity(:,:);            
         end
         if mu(2) > 0
-            i_flux(:,:,2) = circshift(intensity(:,:),[0,+1]); 
+            i_flux(:,:,2) = circshift(intensity(:,:),[1,0]); 
         elseif mu(2) < 0
             i_flux(:,:,2) = intensity(:,:);            
         end
