@@ -6,18 +6,18 @@
 %------------------------ PARAMETERS ------------------ %
 clear all;
 close all;
-nx = 40;
-ny = 40;
+nx = 512;
+ny = 128;
 ntheta = 4; %quadarture is only defined up to 12 in each direction, must be even
 %order of the quadrature, N, refers to the number of mu-levels in the interval [-1, 1].
 
-lx = 1.0;
+lx = 4.0;
 ly = 1.0;
 c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.002;
-nt = 1000;
+nt = 6000;
 
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
@@ -81,15 +81,16 @@ for i=1:nt
     %intensity(nx,:,:) = 0.0;
     %intensity(:,ny,:) = 0.0;
     %intensity(:,1,:) = 0.0;
-    intensity(1,2:ny-1,:) = 1.0; %all first row elements (physically, left bndry)
+    %intensity(1,2:ny-1,:) = 1.0; %all first row elements (physically, left bndry)
 
     %Setup for 2D crossing beams in Jiang14 and Davis12
-    %Periodic boundary conditions on x-boundaries, flip directions 
-    %intensity(nx,:,:) = intensity(2,:,:); 
-    %intensity(1,:,:) = intensity(nx-1,:,:); 
-    %Inject beam at center of bottom boundary with mu_x=0.333, -0.3333
-    %intensity(:,1,1) = 1.0;
-    %intensity(:,1,4) = 1.0;
+    %Periodic boundary conditions on y-boundaries, only for appropriate
+    %rays
+    intensity(:,1,1:na/2) = intensity(:,ny-1,1:na/2); 
+    intensity(:,ny,na/2:na) = intensity(:,2,na/2:na); 
+    %Inject beam at center of LHS boundary with mu_x=0.333, -0.3333
+    intensity(1,ny/2,1) = 1.0;
+    intensity(1,ny/2,7) = 1.0;
     
     %Calculate current mean intensity
     mean_intensity = zeros(nx,ny);
@@ -138,8 +139,8 @@ for i=1:nt
         %Substep #3: Implicitly advance the scattering source terms
  
     end
-    time = dt*i %#ok<NOPTS>
-    if ~mod(i,1000)
+    time = dt*i; %#ok<NOPTS>
+    if ~mod(i,100)
      %  pcolor(xx(2:nx-1,1),yy(2:ny-1,1),mean_intensity(2:nx-1,2:ny-1)')
    %colorbar
 %         hi = subplot(2,3,1); 
@@ -148,19 +149,34 @@ for i=1:nt
 %         x_label = sprintf('mu =(%f, %f)',mu(1,1),mu(1,2));
 %         xlabel(x_label);
 %         colorbar
-
-            %Plot each angular intensity (recall, ntheta must be even)
-             for j=1:na
-             hi = subplot(2,6,j); 
-             h = pcolor(xx,yy,intensity(:,:,j)');
+             hi = subplot(1,2,1); 
+             h = pcolor(yy,xx,intensity(:,:,1));
              set(h, 'EdgeColor', 'none');
-             x_label = sprintf('mu =(%f, %f)',mu(j,1),mu(j,2));
+             x_label = sprintf('mu =(%f, %f)',mu(1,1),mu(1,2));
              time_title = sprintf('t = %f (s)',time);
-             %legend(method);
              xlabel(x_label);
              title(time_title);
              colorbar
-             end
+                          hi = subplot(1,2,2); 
+             h = pcolor(yy,xx,intensity(:,:,7));
+             set(h, 'EdgeColor', 'none');
+             x_label = sprintf('mu =(%f, %f)',mu(7,1),mu(7,2));
+             time_title = sprintf('t = %f (s)',time);
+             xlabel(x_label);
+             title(time_title);
+             colorbar
+            %Plot each angular intensity (recall, ntheta must be even)
+%              for j=1:na
+%              hi = subplot(2,6,j); 
+%              h = pcolor(xx,yy,intensity(:,:,j)');
+%              set(h, 'EdgeColor', 'none');
+%              x_label = sprintf('mu =(%f, %f)',mu(j,1),mu(j,2));
+%              time_title = sprintf('t = %f (s)',time);
+%              %legend(method);
+%              xlabel(x_label);
+%              title(time_title);
+%              colorbar
+%              end
             pause(1.0);
     end
 end
