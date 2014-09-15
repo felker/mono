@@ -1,0 +1,27 @@
+debugging mono2D
+
+The transport step is not working with the van Leer interpolation scheme
+
+I am debugging the test case of one boundary having intensity 1.0
+
+For x=LHS streaming case,
+without abs() on cfl_mu
+
+the first ray is normal (positive cosines)
+but a ray with a negative mu_y blows up, with negative values
+
+
+putting abs() as in mono1D will almost preserve the positive ray but makes the negative one blow up
+
+
+abs() also blows up the donor case.... why is this different than the 1D formulation?
+
+Is this a boundary condition problem? When i set LHS=1.0 but leave the other boundarys to evolve without resetting them to 0.0, we dont get the ray streams, just a sheet moving...
+
+
+NVM, cfl_mu in the 1D code was also negative. No need for abs()
+
+the first ray is the only one that is messed up
+
+
+

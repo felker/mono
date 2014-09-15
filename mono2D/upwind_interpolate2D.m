@@ -11,50 +11,51 @@ switch method
     case 'donor'
         %Donor Cell method, first order accurate
         if mu(1) > 0
-            i_flux(:,:,1) = circshift(intensity(:,:),[0,1]); 
+            i_flux(:,:,1) = circshift(intensity(:,:),[1,0]); 
         elseif mu(1) < 0
             i_flux(:,:,1) = intensity(:,:);            
         end
         if mu(2) > 0
-            i_flux(:,:,2) = circshift(intensity(:,:),[1,0]); 
+            i_flux(:,:,2) = circshift(intensity(:,:),[0,1]); 
         elseif mu(2) < 0
             i_flux(:,:,2) = intensity(:,:);            
         end
     case 'van Leer'
         %Monotonized van Leer slopes
-        vLslopes = zeros(nx,1);
+        vLslopes = zeros(nx,ny);
         for i=2:ny-1
             for j=2:nx-1
                 if ((intensity(j+1,i) - intensity(j,i))*(intensity(j,i) - ...
                         intensity(j-1,i)) > 0)
-                    vLslopes(j) = 2*(intensity(j+1,i) - intensity(j,i))*(intensity(j,i) - ...
+                    vLslopes(j,i) = 2*(intensity(j+1,i) - intensity(j,i))*(intensity(j,i) - ...
                         intensity(j-1,i))/ (intensity(j+1,i) - intensity(j-1,i));
                 else
-                    vLslopes(j) = 0; 
+                    vLslopes(j,i) = 0; 
                 end
             end
         end
         if mu(1) > 0
-            i_flux(:,:,1) = circshift(intensity(:,:),[+1,0]) + ...
-                     (1-c*mu(1)*dt/dx)*circshift(vLslopes,1); 
+            i_flux(:,:,1) = circshift(intensity(:,:),[+1, 0]) + ...
+                     (1-c*mu(1)*dt/dx)*circshift(vLslopes,[1,0]); 
         elseif mu(1) < 0
             i_flux(:,:,1) = intensity(:,:) - (1+c*mu(1)*dt/dx)*vLslopes/2 ;            
         end
-        vLslopes = zeros(ny,1);
+        
+        vLslopes = zeros(nx,ny);
         for i=2:nx-1
             for j=2:ny-1
                 if ((intensity(i,j+1) - intensity(i,j))*(intensity(i,j) - ...
                         intensity(i,j-1)) > 0)
-                    vLslopes(j) = 2*(intensity(i,j+1) - intensity(i,j))*(intensity(i,j) - ...
+                    vLslopes(i,j) = 2*(intensity(i,j+1) - intensity(i,j))*(intensity(i,j) - ...
                         intensity(i,j-1))/ (intensity(i,j+1) - intensity(i,j-1));
                 else
-                    vLslopes(j) = 0; 
+                    vLslopes(i,j) = 0; 
                 end
             end
         end
         if mu(2) > 0
             i_flux(:,:,2) = circshift(intensity(:,:),[0,+1]) + ...
-                     (1-c*mu(2)*dt/dy)*circshift(vLslopes,1); 
+                     (1-c*mu(2)*dt/dy)*circshift(vLslopes,[0,1]); 
         elseif mu(2) < 0
             i_flux(:,:,2) = intensity(:,:) - (1+c*mu(2)*dt/dy)*vLslopes/2 ;            
         end    
