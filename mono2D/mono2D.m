@@ -8,7 +8,7 @@ clear all;
 close all;
 nx = 40;
 ny = 40;
-ntheta = 6; %quadarture is only defined up to 12 in each direction, must be even
+ntheta = 4; %quadarture is only defined up to 12 in each direction, must be even
 %order of the quadrature, N, refers to the number of mu-levels in the interval [-1, 1].
 
 lx = 1.0;
@@ -52,6 +52,7 @@ rho_s = zeros(nx,ny);
 % How can we ensure that the cfl number per angle is the same without
 % changing the timestep?
 % Why is stability CFL=0.5?
+v(:,:,1) = 0.0; 
 
 %------------------------ PRE-TIMESTEPPING SETUP ------------------ %
 
@@ -66,7 +67,7 @@ nv = zeros(nx,ny,na);
 for i=1:nx
     for j=1:ny
         for k=1:na
-            nv(i,j,k) = v(i,j,1)*mu(na,1) + v(i,j,2)*mu(na,2);
+            nv(i,j,k) = v(i,j,1)*mu(k,1) + v(i,j,2)*mu(k,2);
         end
     end
 end
@@ -82,7 +83,8 @@ for i=1:nt
     %intensity(:,1,:) = 0.0;
     intensity(1,2:ny-1,:) = 1.0; %all first row elements (physically, left bndry)
 
-    %Periodic boundary conditions on x-boundaries 
+    %Setup for 2D crossing beams in Jiang14 and Davis12
+    %Periodic boundary conditions on x-boundaries, flip directions 
     %intensity(nx,:,:) = intensity(2,:,:); 
     %intensity(1,:,:) = intensity(nx-1,:,:); 
     %Inject beam at center of bottom boundary with mu_x=0.333, -0.3333
@@ -123,19 +125,14 @@ for i=1:nt
             alpha(2:nx-1,2:ny-1).*(mu(j,1)*dt*c/dx*(i_flux(2:nx-1,2:ny-1,1) - A(2:nx-1,2:ny-1)) + ...
             mu(j,2)*dt*c/dy*(i_flux(2:nx-1,2:ny-1,2) - B(2:nx-1,2:ny-1)));  
 
-%         if min(min(intensity(:,:,j))) <0
-%             j
-%             i
-%             return;
-%         end
         %fliplr(intensity(2:nx-1,2:ny-1,j)) - intensity(2:nx-1,2:ny-1,j) 
 
         %Advection with fluid at fluid velocity
-        %i_flux = upwind_interpolate2D(3*nv(:,:,j).*mean_intensity,method,mu(j,:),dt,dx,dy,c); 
+        i_flux = upwind_interpolate2D(3*nv(:,:,j).*mean_intensity,method,mu(j,:),dt,dx,dy,c); 
         %might need to remove the mu(j) here
-        %intensity(:,:,j) = intensity(:,:,j) + ...
-        %    sqrt(v(:,:,1).^2 + v(:,:,2).^2).*(mu(j,1)*dt/dx*(i_flux(:,:,1) - circshift(i_flux(:,:,1),[-1, 0, 0])) + ...
-        %    mu(j,2)*dt/dy*(i_flux(:,:,2) - circshift(i_flux(:,:,2),[0 -1 0 ])));   
+        intensity(:,:,j) = intensity(:,:,j) + ...
+            sqrt(v(:,:,1).^2 + v(:,:,2).^2).*(mu(j,1)*dt/dx*(i_flux(:,:,1) - circshift(i_flux(:,:,1),[-1, 0, 0])) + ...
+            mu(j,2)*dt/dy*(i_flux(:,:,2) - circshift(i_flux(:,:,2),[0 -1 0 ])));   
         %Substep #2: Implicitly advance the absorption source terms
 
         %Substep #3: Implicitly advance the scattering source terms
@@ -154,7 +151,7 @@ for i=1:nt
 
             %Plot each angular intensity (recall, ntheta must be even)
              for j=1:na
-             hi = subplot(3,8,j); 
+             hi = subplot(2,6,j); 
              h = pcolor(xx,yy,intensity(:,:,j)');
              set(h, 'EdgeColor', 'none');
              x_label = sprintf('mu =(%f, %f)',mu(j,1),mu(j,2));
