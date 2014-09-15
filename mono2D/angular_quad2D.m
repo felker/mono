@@ -109,8 +109,8 @@ assert(all((abs(sum((direction_cosines.*direction_cosines),2) - ones(num_rays,1)
 %Use Bruls method to calculate families of weights. Solve system of eqs
 wpf = pmat(1:N/2-1,1:N/2-1)\level_weights(1:N/2-1);
 for i=1:num_rays_per_octant %each quadrant, normalize %Is this ordered correctly?
-    point_weights(i) = wpf(plab(i))*0.125;
-    point_weights(i+num_rays_per_octant) = wpf(plab(i))*0.125; 
+    point_weights(i) = wpf(plab(i))*0.25;
+    point_weights(i+num_rays_per_octant) = wpf(plab(i))*0.25; 
     point_weights(i+2*num_rays_per_octant) = wpf(plab(i))*0.25; 
     point_weights(i+3*num_rays_per_octant) = wpf(plab(i))*0.25; 
 end
