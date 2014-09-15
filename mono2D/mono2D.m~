@@ -8,7 +8,7 @@ clear all;
 close all;
 nx = 40;
 ny = 40;
-ntheta = 4; %quadarture is only defined up to 12 in each direction, must be even
+ntheta = 6; %quadarture is only defined up to 12 in each direction, must be even
 %order of the quadrature, N, refers to the number of mu-levels in the interval [-1, 1].
 
 lx = 1.0;
@@ -20,7 +20,7 @@ dt = 0.002;
 nt = 1000;
 
 %Upwind monotonic interpolation scheme
-method = 'donor'; 
+method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
 
 %------------------------ BUILD MESH ------------------ %
@@ -47,7 +47,6 @@ rho_a = zeros(nx,ny);
 %Scattering opacities
 rho_s = zeros(nx,ny);
 
-
 %Open questions: how does one convert from the thermal source function to
 %rho_a, rho_s for LTE
 % How can we ensure that the cfl number per angle is the same without
@@ -59,7 +58,7 @@ rho_s = zeros(nx,ny);
 %Calculate Radiation CFL numbers
 cfl_mu = c*dt*abs(mu)*[1/dx 1/dy 0]';
 %set dt to have max cfl of 0.4
-dt = dt*0.4/max(cfl_mu);
+dt = dt*0.3/max(cfl_mu);
 cfl_mu = c*dt*abs(mu)*[1/dx 1/dy 0]';
 
 %Calculate dot product of local fluid velocity and radiation rays
@@ -117,12 +116,13 @@ for i=1:nt
         end
     
         i_flux = upwind_interpolate2D(intensity(:,:,j),method,mu(j,:),dt,dx,dy,c);
+        A = circshift(i_flux(:,:,1),[-1 0]);
         B = circshift(i_flux(:,:,2),[0 -1]);
         
         intensity(2:nx-1,2:ny-1,j) = intensity(2:nx-1,2:ny-1,j) + ...
-            alpha(2:nx-1,2:ny-1).*(mu(j,1)*dt*c/dx*(i_flux(2:nx-1,2:ny-1,1) - A(2:nx-1,2:ny) + ...
-            mu(j,2)*dt*c/dy*(i_flux(2:nx-1,2:ny-1,2) - A(2:nx-1,2:ny-1)));  
-       
+            alpha(2:nx-1,2:ny-1).*(mu(j,1)*dt*c/dx*(i_flux(2:nx-1,2:ny-1,1) - A(2:nx-1,2:ny-1)) + ...
+            mu(j,2)*dt*c/dy*(i_flux(2:nx-1,2:ny-1,2) - B(2:nx-1,2:ny-1)));  
+
 %         if min(min(intensity(:,:,j))) <0
 %             j
 %             i
@@ -142,28 +142,29 @@ for i=1:nt
  
     end
     time = dt*i %#ok<NOPTS>
-    if ~mod(i,20)
+    if ~mod(i,1000)
      %  pcolor(xx(2:nx-1,1),yy(2:ny-1,1),mean_intensity(2:nx-1,2:ny-1)')
    %colorbar
-        hi = subplot(2,1,1); 
-        h = pcolor(xx,yy,intensity(:,:,1)');
-        set(h, 'EdgeColor', 'none');
-        colorbar
-        hi = subplot(2,1,2); 
-        h= pcolor(xx,yy,intensity(:,:,7)');
-        set(h, 'EdgeColor', 'none');
-        colorbar
+%         hi = subplot(2,3,1); 
+%         h = pcolor(xx,yy,intensity(:,:,1)');
+%         set(h, 'EdgeColor', 'none');
+%         x_label = sprintf('mu =(%f, %f)',mu(1,1),mu(1,2));
+%         xlabel(x_label);
+%         colorbar
+
             %Plot each angular intensity (recall, ntheta must be even)
-%             for j=1:na
-%             hi = subplot(2,6,j); 
-%             pcolor(xx,yy,intensity(:,:,j));
-%             x_label = sprintf('mu =(%f, %f)',mu(j,1),mu(j,2));
-%             time_title = sprintf('t = %f (s)',time);
-%             legend(method);
-%             xlabel(x_label);
-%             title(time_title); 
-%             end
-            pause(0.1);
+             for j=1:na
+             hi = subplot(3,8,j); 
+             h = pcolor(xx,yy,intensity(:,:,j)');
+             set(h, 'EdgeColor', 'none');
+             x_label = sprintf('mu =(%f, %f)',mu(j,1),mu(j,2));
+             time_title = sprintf('t = %f (s)',time);
+             %legend(method);
+             xlabel(x_label);
+             title(time_title);
+             colorbar
+             end
+            pause(1.0);
     end
 end
 

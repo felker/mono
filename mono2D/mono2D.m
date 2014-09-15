@@ -8,7 +8,7 @@ clear all;
 close all;
 nx = 40;
 ny = 40;
-ntheta = 4; %quadarture is only defined up to 12 in each direction, must be even
+ntheta = 6; %quadarture is only defined up to 12 in each direction, must be even
 %order of the quadrature, N, refers to the number of mu-levels in the interval [-1, 1].
 
 lx = 1.0;
@@ -46,7 +46,6 @@ mean_intensity = zeros(nx,ny);
 rho_a = zeros(nx,ny);
 %Scattering opacities
 rho_s = zeros(nx,ny);
-
 
 %Open questions: how does one convert from the thermal source function to
 %rho_a, rho_s for LTE
@@ -143,7 +142,7 @@ for i=1:nt
  
     end
     time = dt*i %#ok<NOPTS>
-    if ~mod(i,20)
+    if ~mod(i,1000)
      %  pcolor(xx(2:nx-1,1),yy(2:ny-1,1),mean_intensity(2:nx-1,2:ny-1)')
    %colorbar
 %         hi = subplot(2,3,1); 
@@ -155,7 +154,7 @@ for i=1:nt
 
             %Plot each angular intensity (recall, ntheta must be even)
              for j=1:na
-             hi = subplot(2,6,j); 
+             hi = subplot(3,8,j); 
              h = pcolor(xx,yy,intensity(:,:,j)');
              set(h, 'EdgeColor', 'none');
              x_label = sprintf('mu =(%f, %f)',mu(j,1),mu(j,2));
@@ -165,7 +164,7 @@ for i=1:nt
              title(time_title);
              colorbar
              end
-            pause(0.3);
+            pause(1.0);
     end
 end
 
