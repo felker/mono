@@ -8,12 +8,12 @@
 %------------------------ PARAMETERS ------------------ %
 clear all;
 close all;
-nx = 100;
-ny = 100;
+nx = 512;
+ny = 128;
 ntheta = 4; %quadarture is only defined up to 12 in each direction, must be even
 %order of the quadrature, N, refers to the number of mu-levels in the interval [-1, 1].
 
-lx = 1.0;
+lx = 4.0;
 ly = 1.0;
 c = 1.0;
 dx = lx/nx;
@@ -62,7 +62,7 @@ density = ones(nx,ny);
 % How can we ensure that the cfl number per angle is the same without
 % changing the timestep?
 % Why is stability CFL=0.5?
-v(:,:,1) = 0.0; 
+v(:,:,2) = 0.1; 
 
 %------------------------ PRE-TIMESTEPPING SETUP ------------------ %
 
@@ -100,19 +100,19 @@ P = a_r*T_0^4/P_0;  %measure of relative importance of rad and gas pressure
 intensity_new = intensity;
 for i=1:nt
     %Reapply boundary conditions
-    intensity(nx,:,:) = 0.0;
-    intensity(:,ny,:) = 0.0;
-    intensity(:,1,:) = 0.0;
-    intensity(1,2:ny-1,:) = 0.0; %all first row elements (physically, left bndry)
+    %intensity(nx,:,:) = 0.0;
+    %intensity(:,ny,:) = 0.0;
+    %intensity(:,1,:) = 0.0;
+    %intensity(1,2:ny-1,:) = 0.0; %all first row elements (physically, left bndry)
 
     %Setup for 2D crossing beams in Jiang14 and Davis12
     %Periodic boundary conditions on y-boundaries, only for appropriate
     %rays
-   % intensity(:,1,1:na/2) = intensity(:,ny-1,1:na/2); 
-   % intensity(:,ny,na/2:na) = intensity(:,2,na/2:na); 
+    intensity(:,1,1:na/2) = intensity(:,ny-1,1:na/2); 
+    intensity(:,ny,na/2:na) = intensity(:,2,na/2:na); 
     %Inject beam at center of LHS boundary with mu_x=0.333, -0.3333
-    %intensity(1,ny/2,1) = 1.0;
-    %intensity(1,ny/2,7) = 1.0;
+    intensity(1,ny/2,1) = 1.0;
+    intensity(1,ny/2,7) = 1.0;
     
     %Calculate current mean intensity
     mean_intensity = zeros(nx,ny);
@@ -165,18 +165,25 @@ for i=1:nt
         %thermalization is fast
             temp_step = temp(k,l);
             IN_step = intensity(k,l,na);
-            IN_old = IN_step;
+            I_old = intensity(k,l,:);
+            temp_old = temp_step;
             for m =1:MAX_ITER
-                %Build RHS vector
+                %Build RHS vector representing the original nonlinear
+                %function, restricted to only the final two components
                 F = zeros(2,1); 
-                %is the last term in this handled incorretly via tensor
-                %contraction?
-                %do we need to do full quadrature with all angles?
-                F(1) = 1- dt*rho_a(k,l)*((temp_step^4/(4*pi) - IN_step) + 3*nv(k,l,na)*temp_step^4/(4*pi) + ...
-                    nv(k,l,na)*IN_step - (v(k,l,1)^2+v(k,l,2)^2)/c^2*pw(na)*IN_step -1/c^2*nv(k,l,na)^2*pw(na)*IN_step) ;
-                F(2) = 1 - dt*(adiabatic -1)/(R*density(k,l))*(-8*pi*P*rho_a(k,l)*(nv(k,l,na)*pw(na)*IN_step - c^-2*(v(k,l,1)^2+v(k,l,2)^2)*IN_step*pw(na) - ...
-                    nv(k,l,na)^2*IN_step*pw(na)) - P*C*(1-(v(k,l,1)^2+v(k,l,2)^2)/c^2)*rho_a(k,l)*(temp_step^4 - 4*pi*pw(na)*IN_step));
-                %Build reduced Jacobian 
+                quad_term = 0.0; 
+                for r=1:na-1
+                    quad_term = quad_term + v(k,l,1)^2*mu(r,1)^2 + v(k,l,2)^2*mu(r,2)^2 + ...
+                        2*v(k,l,1)*mu(r,1)*v(k,l,2)*mu(r,2)*intensity(k,l,r)*pw(r);
+                end
+                quad_term = quad_term + v(k,l,1)^2*mu(na,1)^2 + v(k,l,2)^2*mu(na,2)^2 + ...
+                        2*v(k,l,1)*mu(na,1)*v(k,l,2)*mu(na,2)*IN_step*pw(na);                
+                F(1) = IN_step - dt*rho_a(k,l)*((temp_step^4/(4*pi) - IN_step) + 3*nv(k,l,na)*temp_step^4/(4*pi) + ...
+                    nv(k,l,na)*IN_step - (v(k,l,1)^2+v(k,l,2)^2)/c^2*pw(1:na-1)'*squeeze(intensity(k,l,1:na-1)) +pw(na)*IN_step -1/c^2*quad_term) - I_old(na); 
+                F(2) = temp_step - dt*(adiabatic -1)/(R*density(k,l))*(-8*pi*P*rho_a(k,l)*(squeeze(nv(k,l,1:na-1))'.*pw(1:na-1)'*squeeze(intensity(k,l,1:na-1)) + ...
+                    nv(k,l,na)*pw(na)*IN_step - c^-2*((v(k,l,1)^2+v(k,l,2)^2)*(pw(1:na-1)'*squeeze(intensity(k,l,1:na-1)) + IN_step*pw(na))  - quad_term))...
+                   - P*C*(1-(v(k,l,1)^2+v(k,l,2)^2)/c^2)*rho_a(k,l)*(temp_step^4 - 4*pi*(pw(1:na-1)'*squeeze(intensity(k,l,1:na-1)) + pw(na)*IN_step))) - temp_old;
+               %Build reduced Jacobian 
                 J = zeros(2,2); 
                 J(1,1) = -dt*(1+ rho_a(k,l)*((nv(k,l,na)-1)- sqrt(v(k,l,1)^2+v(k,l,2)^2)*pw(na)/c^2 - ...
                     pw(na)*(nv(k,l,na))^2/c^2));
@@ -186,33 +193,32 @@ for i=1:nt
                     P*(1-v(k,l,1)^2+v(k,l,2)^2/c^2)*rho_a(k,l)*4*pi*pw(na)); 
                 J(2,2) = 1+ dt*(adiabatic -1)/(R*density(k,l))*(-4*P*(1-v(k,l,1)^2+v(k,l,2)^2/c^2)*rho_a(k,l)*temp_step^3); 
                 
-                %Solve 2x2 system for temperature and I^n+1_na stpes
-                delta_step = J\F; 
+                %Solve 2x2 system for I^n+1_na and T^n+1 steps
+                delta_step = J\-F; 
                 IN_step = IN_step + delta_step(1);
                 temp_step = temp_step + delta_step(2);
-                %check convergence criteria
-                if max(abs(delta_step./[IN_step temp_step]')) < delta_c
-                    break;
-                end            
-            end %done with NR solve at this point
-                intensity(k,l,na) = IN_step; 
                 %Explicitly update all other rays (this probs has to come before 
                 %the end of the NR loop if quadrature is used in F(I^n+1)
                 for n=1:na-1
-                    intensity(k,l,n) = (1-dt*(1+nv(k,l,n)/c)*rho_a(k,l))^-1*((IN_step - IN_old)/dt + ...
+                    intensity(k,l,n) = (1-dt*(1+nv(k,l,n)/c)*rho_a(k,l))^-1*((IN_step - I_old(na))/dt + ...
                         rho_a(k,l)*IN_step + 3*temp_step^4/(4*pi*c)*rho_a(k,l)*(nv(k,l,n) - nv(k,l,na)) ...
                         - nv(k,l,na)/c*rho_a(k,l)*IN_step);           
                 end
-                   return;
-
+                intensity(k,l,na) = IN_step; 
+                %check convergence criteria. Maybe change this to delta
+                %intensity?
+                if max(abs(delta_step./[I_old(na) temp_old]')) < delta_c
+                    break;
+                end  
+                return;
+            end %done with NR solve at cell
             end
         end
         %Substep #3: Implicitly advance the scattering source terms
- 
     
     time = dt*i; %#ok<NOPTS>
 %------------------------ OUTPUT ------------------ %
-    if ~mod(i,10)
+    if ~mod(i,100)
      %  pcolor(xx(2:nx-1,1),yy(2:ny-1,1),mean_intensity(2:nx-1,2:ny-1)')
    %colorbar
 %         hi = subplot(2,3,1); 
