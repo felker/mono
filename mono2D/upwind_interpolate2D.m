@@ -36,9 +36,9 @@ switch method
         end
         if mu(1) > 0
             i_flux(:,:,1) = circshift(intensity(:,:),[+1, 0]) + ...
-                     (1-c*mu(1)*dt/dx)*circshift(vLslopes,[1,0])/2; 
+                     (1-c*mu(1)*dt/dx).*circshift(vLslopes,[1,0])/2; 
         elseif mu(1) < 0
-            i_flux(:,:,1) = intensity(:,:) - (1+c*mu(1)*dt/dx)*vLslopes/2 ;            
+            i_flux(:,:,1) = intensity(:,:) - (1+c*mu(1)*dt/dx).*vLslopes/2 ;            
         end
         
         vLslopes = zeros(nx,ny);
@@ -55,9 +55,9 @@ switch method
         end
         if mu(2) > 0
             i_flux(:,:,2) = circshift(intensity(:,:),[0,+1]) + ...
-                     (1-c*mu(2)*dt/dy)*circshift(vLslopes,[0,1])/2; 
+                     (1-c*mu(2)*dt/dy).*circshift(vLslopes,[0,1])/2; 
         elseif mu(2) < 0
-            i_flux(:,:,2) = intensity(:,:) - (1+c*mu(2)*dt/dy)*vLslopes/2 ;            
+            i_flux(:,:,2) = intensity(:,:) - (1+c*mu(2)*dt/dy).*vLslopes/2 ;            
         end    
     case 'CW' %colella and woodward
     otherwise
