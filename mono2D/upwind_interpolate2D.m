@@ -36,7 +36,7 @@ switch method
         end
         if mu(1) > 0
             i_flux(:,:,1) = circshift(intensity(:,:),[+1, 0]) + ...
-                     (1-c*mu(1)*dt/dx).*circshift(vLslopes,[1,0])/2; 
+                     (ones(nx,ny)-mu(1)*dt/dx*c).*circshift(vLslopes,[1,0])/2; 
         elseif mu(1) < 0
             i_flux(:,:,1) = intensity(:,:) - (1+c*mu(1)*dt/dx).*vLslopes/2 ;            
         end
