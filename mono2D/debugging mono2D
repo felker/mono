@@ -23,5 +23,8 @@ NVM, cfl_mu in the 1D code was also negative. No need for abs()
 
 the first ray is the only one that is messed up
 
+The donor cell method works but suffers high diffusion
+the van leer method blows up most on cases when mu_x=mu=y are equal and positive. HOW DOES THE POSITIVITY PLAY INTO IT?
+
 
 

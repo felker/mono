@@ -8,7 +8,7 @@ function root = rtsafe(fn_handle,x1,x2,xacc,coef1,coef2,coef3,coef4)
     if (fl == 0) root=x1; return; end
     if (fh == 0) root=x2; return; end
     if ((fl > 0.0 && fh > 0.0) || (fl < 0.0 && fh < 0.0))
-        error('Root must be bracketed');
+        error('Root must be bracketed fl = %f fh = %f',fl,fh);
     end
     if fl < 0.0
         xl=x1; %low v high?

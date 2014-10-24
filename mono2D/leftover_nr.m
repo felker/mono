@@ -1,6 +1,13 @@
 %left over multidimensional (2x2) NR solve in absorption term updates
 %none of this worked correctly
-
+            %My equilibrium function, and derivative
+%             E = zeros(na,1);
+%             for r=1:na 
+%                 E(r) = (I_old(r) + C*rho_a(k,l)*temp_old^4/(4*pi))/(1 +dt*rho_a(k,l)*C);
+%             end;
+%             
+%             fn_handle = @(t) deal(t - temp_old + dt*rho_a(k,l)*P*C/(density(k,l)*R)*(t^4 - ...
+%                 4*pi*E'*pw), 1 + dt*rho_a(k,l)*P*C/(density(k,l)*R)*(1- 1/(1+dt*rho_a(k,l)*C))*4*t^3);     
 
            for m =1:MAX_ITER
        %         Build RHS vector representing the original nonlinear
