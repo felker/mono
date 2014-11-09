@@ -19,8 +19,9 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.002;
-nt = 30;
+nt = 3000;
 out_count = 0;
+output_interval = 500; 
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
@@ -62,7 +63,7 @@ P = a_r*T_0^4/P_0;  %measure of relative importance of rad and gas pressure
 %For 2D and verification of Jiang14, we no longer use the source function
 %or extinction probability 
 %Absorption opacities
-rho_a = 100*ones(nx,ny);
+rho_a = zeros(nx,ny);%100*ones(nx,ny);
 %Scattering opacities
 rho_s = zeros(nx,ny);
 %Fluid density, temperature
@@ -134,6 +135,7 @@ for i=1:nt
     %Update moments
     [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,C);
     %Substep #1: Explicitly advance transport term
+    net_flux = zeros(nx,ny,na);
     for j=1:na %do all nx, ny at once
         %Split the transport term into diffusion and advection terms
         %Photon diffusion at nearly the speed of light
@@ -152,104 +154,107 @@ for i=1:nt
         %upwinding speed in function vs coefficients on the flux terms?
         %where do we put the net flux? on the absorption term update?
         %IV vs I twiddle
-        net_flux = zeros(nx,ny,na);
-        i_flux = upwind_interpolate2D(intensity(:,:,j) - 3*nv(:,:,j).*J,method,mu(j,:),dt,dx,dy,alpha*C);
-
+        %does the numerical method necessitate calculation of two flux
+        %steps, and then adding it to intensity?
+        %KYLE FIX 11/9: divide nv*J by C !! this was in the paper, but I
+        %missed it
+        i_flux = upwind_interpolate2D(intensity(:,:,j) - 3*nv(:,:,j).*J/C,method,mu(j,:),dt,dx,dy,alpha*C);
         A = circshift(i_flux(:,:,1),[-1 0]);
         B = circshift(i_flux(:,:,2),[0 -1]);
         net_flux(2:nx-1,2:ny-1,j) = (mu(j,1)*dt*C/dx*(i_flux(2:nx-1,2:ny-1,1) - A(2:nx-1,2:ny-1)) + ...
             mu(j,2)*dt*C/dy*(i_flux(2:nx-1,2:ny-1,2) - B(2:nx-1,2:ny-1)));
-
+    
         %Advection with fluid at fluid velocity
         i_flux = upwind_interpolate2D(3*nv(:,:,j).*J,method,mu(j,:),dt,dx,dy,absV);
         A = circshift(i_flux(:,:,1),[-1 0]);
         B = circshift(i_flux(:,:,2),[0 -1]);
         net_flux(2:nx-1,2:ny-1,j) = net_flux(2:nx-1,2:ny-1,j) + ...
             mu(j,1)*dt/dx*(i_flux(2:nx-1,2:ny-1,1) - A(2:nx-1,2:ny-1)) + ...
-            mu(j,2)*dt/dy*(i_flux(2:nx-1,2:ny-1,2) - B(2:nx-1,2:ny-1));  
+            mu(j,2)*dt/dy*(i_flux(2:nx-1,2:ny-1,2) - B(2:nx-1,2:ny-1)); 
     end %end of ray loop
+    %ONLY NEEDED WHEN DISABLING SOURCE TERM SOLVES
+    intensity = intensity + net_flux; 
     %Substep #2: Implicitly advance the absorption source terms at each
     %cell, for all rays in a cell 
-    for k=2:nx-1 %rays must be solved together
-        for l=2:ny-1
-            %Use Newton-Raphson. System is nonlinear in T^n+1. Use previous
-            %values as initial guesses. Need to do implicitly because
-            %thermalization is fast
-            I_old = squeeze(intensity(k,l,:));
-            temp_old = temp(k,l);
-       
-            %REDUCE TO 1D NR solve            
-            A = zeros(na,1);
-            B = zeros(na,1);
-            D = zeros(na,1);
-            A(na) = (1 +dt*rho_a(k,l)*C - dt*rho_a(k,l)*nv(k,l,na));
-            for r=1:na-1
-                A(r) = A(na)/(1 +dt*rho_a(k,l)*C - dt*rho_a(k,l)*nv(k,l,r)); 
-                B(r) = 3.0*dt*rho_a(k,l)*(nv(k,l,r) - nv(k,l,na))/(4*pi*(1+dt*rho_a(k,l)*C*(1-nv(k,l,r)/C)));
-                D(r) = (intensity(k,l,r) - intensity(k,l,na))/(1+dt*rho_a(k,l)*C*(1-nv(k,l,r)/C));
-            end
-            A(na) = 1.0;
-            B(na) = 0.0;
-            D(na) = 0.0; 
-            
-            %Match coefficients in hydro_to_rad.c
-            Jfactor = P*(2+dt*rho_a(k,l)*C*(1+vCsquare(k,l)));
-            J1 = - density(k,l)*R/(4*pi*(adiabatic-1)*Jfactor); 
-            J2 = dt*rho_a(k,l)*P*C*(1+vCsquare(k,l))/(4*pi*Jfactor);
-            J3 = 2*P*J(k,l)/Jfactor + density(k,l)*R*temp_old/(4*pi*(adiabatic-1)*Jfactor); 
-            
-            coef1 = 1 + dt*rho_a(k,l)*C*(1-nv(k,l,na)/C) + dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*A)'*pw/C;
-            coef2 = dt*rho_a(k,l)*C*(1+3*nv(k,l,na)/C)/(4*pi) - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*B)'*pw/C;
-            coef3 = intensity(k,l,na) - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*D)'*pw/C;
-            
-            Tcoef = coef1*J1;
-            T4coef = coef1*J2;
-            Tconst = coef1*J3;
-
-            T4coef = T4coef - (coef1*B + coef2*A)'*pw;
-            Tconst = Tconst - (coef1*D + coef3*A)'*pw;
-
-            Tmax = (0.5*density(k,l)*vsquare(k,l) +rad_energy(k,l))*(adiabatic -1.0)/(density(k,l)*R) + temp_old; 
-
-            %ATHENA equilibrium function, and derivative
-            if abs(T4coef) < 1e-18
-                temp(k,l) = -Tconst/Tcoef;
-            else
-                Tmin = max(-0.25*Tcoef/T4coef,0.0).^(1./3); 
-                fmin = T4coef*Tmin^4.0 + Tcoef*Tmin + Tconst;
-                fmax = T4coef*Tmax^4.0 + Tcoef*Tmax + Tconst;
-                if (T4coef * fmin > 0.0)
-                    error('No solution in this case');
-                else
-                    fn_handle = @(t,coef1,coef2,coef3,coef4) deal(coef1*t^4 + coef2*t + coef3,4.0*coef1*t^3 + coef2); 
-                    temp(k,l) = rtsafe_orig(fn_handle,Tmin,Tmax,delta_c, T4coef, Tcoef, Tconst, 0.0);
-                end
-            end
-            %Explicitly update all other rays 
-            intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1 + net_flux(k,l,na);
-            intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1) + D(1:na-1) + squeeze(net_flux(k,l,1:na-1)); 
-            
-            %Fake update gas quantities as it absorbs internal energy
-            %density?
-            %change in gas internal energy
-            dEt = (density(k,l)*R/adiabatic)*(temp(k,l) - temp_old);
-            dGasMomentum = zeros(2,1);
-            for r=1:2
-                for n=1:na
-                    dGasMomentum(r) = dGasMomentum(r) - P/C*(intensity(k,l,n) - I_old(n))*mu(n,r)*pw(n);                 
-                end
-            end
-            %no change in momentum due to isotropy
-            dGasKE =((density(k,l)*squeeze(v(k,l,:)) + dGasMomentum)'*(density(k,l)*squeeze(v(k,l,:)) + dGasMomentum) - ...
-                (density(k,l)*squeeze(v(k,l,:)))'*(density(k,l)*squeeze(v(k,l,:))))/(2*density(k,l));           
-            end
-        end
+%     for k=2:nx-1 %rays must be solved together
+%         for l=2:ny-1
+%             %Use Newton-Raphson. System is nonlinear in T^n+1. Use previous
+%             %values as initial guesses. Need to do implicitly because
+%             %thermalization is fast
+%             I_old = squeeze(intensity(k,l,:));
+%             temp_old = temp(k,l);
+%        
+%             %REDUCE TO 1D NR solve            
+%             A = zeros(na,1);
+%             B = zeros(na,1);
+%             D = zeros(na,1);
+%             A(na) = (1 +dt*rho_a(k,l)*C - dt*rho_a(k,l)*nv(k,l,na));
+%             for r=1:na-1
+%                 A(r) = A(na)/(1 +dt*rho_a(k,l)*C - dt*rho_a(k,l)*nv(k,l,r)); 
+%                 B(r) = 3.0*dt*rho_a(k,l)*(nv(k,l,r) - nv(k,l,na))/(4*pi*(1+dt*rho_a(k,l)*C*(1-nv(k,l,r)/C)));
+%                 D(r) = (intensity(k,l,r) - intensity(k,l,na))/(1+dt*rho_a(k,l)*C*(1-nv(k,l,r)/C));
+%             end
+%             A(na) = 1.0;
+%             B(na) = 0.0;
+%             D(na) = 0.0; 
+%             
+%             %Match coefficients in hydro_to_rad.c
+%             Jfactor = P*(2+dt*rho_a(k,l)*C*(1+vCsquare(k,l)));
+%             J1 = - density(k,l)*R/(4*pi*(adiabatic-1)*Jfactor); 
+%             J2 = dt*rho_a(k,l)*P*C*(1+vCsquare(k,l))/(4*pi*Jfactor);
+%             J3 = 2*P*J(k,l)/Jfactor + density(k,l)*R*temp_old/(4*pi*(adiabatic-1)*Jfactor); 
+%             
+%             coef1 = 1 + dt*rho_a(k,l)*C*(1-nv(k,l,na)/C) + dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*A)'*pw/C;
+%             coef2 = dt*rho_a(k,l)*C*(1+3*nv(k,l,na)/C)/(4*pi) - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*B)'*pw/C;
+%             coef3 = intensity(k,l,na) - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*D)'*pw/C;
+%             
+%             Tcoef = coef1*J1;
+%             T4coef = coef1*J2;
+%             Tconst = coef1*J3;
+% 
+%             T4coef = T4coef - (coef1*B + coef2*A)'*pw;
+%             Tconst = Tconst - (coef1*D + coef3*A)'*pw;
+% 
+%             Tmax = (0.5*density(k,l)*vsquare(k,l) +rad_energy(k,l))*(adiabatic -1.0)/(density(k,l)*R) + temp_old; 
+% 
+%             %ATHENA equilibrium function, and derivative
+%             if abs(T4coef) < 1e-18
+%                 temp(k,l) = -Tconst/Tcoef;
+%             else
+%                 Tmin = max(-0.25*Tcoef/T4coef,0.0).^(1./3); 
+%                 fmin = T4coef*Tmin^4.0 + Tcoef*Tmin + Tconst;
+%                 fmax = T4coef*Tmax^4.0 + Tcoef*Tmax + Tconst;
+%                 if (T4coef * fmin > 0.0)
+%                     error('No solution in this case');
+%                 else
+%                     fn_handle = @(t,coef1,coef2,coef3,coef4) deal(coef1*t^4 + coef2*t + coef3,4.0*coef1*t^3 + coef2); 
+%                     temp(k,l) = rtsafe_orig(fn_handle,Tmin,Tmax,delta_c, T4coef, Tcoef, Tconst, 0.0);
+%                 end
+%             end
+%             %Explicitly update all other rays 
+%             intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1 + net_flux(k,l,na);
+%             intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1) + D(1:na-1) + squeeze(net_flux(k,l,1:na-1)); 
+%             
+%             %Fake update gas quantities as it absorbs internal energy
+%             %density?
+%             %change in gas internal energy
+%             dEt = (density(k,l)*R/adiabatic)*(temp(k,l) - temp_old);
+%             dGasMomentum = zeros(2,1);
+%             for r=1:2
+%                 for n=1:na
+%                     dGasMomentum(r) = dGasMomentum(r) - P/C*(intensity(k,l,n) - I_old(n))*mu(n,r)*pw(n);                 
+%                 end
+%             end
+%             %no change in momentum due to isotropy
+%             dGasKE =((density(k,l)*squeeze(v(k,l,:)) + dGasMomentum)'*(density(k,l)*squeeze(v(k,l,:)) + dGasMomentum) - ...
+%                 (density(k,l)*squeeze(v(k,l,:)))'*(density(k,l)*squeeze(v(k,l,:))))/(2*density(k,l));           
+%             end
+%         end
         time = dt*i %#ok<NOPTS>
-        
         %Substep #3: Implicitly advance the scattering source terms
     
 %------------------------ OUTPUT ------------------ %
-    if ~mod(i,5)
+    if ~mod(i,output_interval)
 %      out_count = out_count +1; 
 %     time_plot(out_count) = time; 
 %     y_out(out_count) = rad_energy(nx/2,ny/2);
@@ -330,7 +335,6 @@ for i=1:nt
 % 
 % return;
 
-   
          %symmetry test
          %fliplr(intensity(2:nx-1,2:ny-1,j)) - intensity(2:nx-1,2:ny-1,j) 
  
