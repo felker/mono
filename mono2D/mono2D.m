@@ -19,9 +19,9 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.002;
-nt = 3000;
+nt = 100;
 out_count = 0;
-output_interval = 500; 
+output_interval = 10; 
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
@@ -63,7 +63,7 @@ P = a_r*T_0^4/P_0;  %measure of relative importance of rad and gas pressure
 %For 2D and verification of Jiang14, we no longer use the source function
 %or extinction probability 
 %Absorption opacities
-rho_a = zeros(nx,ny);%100*ones(nx,ny);
+rho_a = 100*ones(nx,ny);
 %Scattering opacities
 rho_s = zeros(nx,ny);
 %Fluid density, temperature
@@ -104,7 +104,7 @@ end
 %Explicit-Implicit operator splitting scheme
 %-------------------------------------------
 %assert(min(abs(cfl_mu) <= ones(ntheta,1))); 
-%intensity(:,:,:) = 1.0/(4*pi); 
+intensity(:,:,:) = 1.0/(4*pi); 
 for i=1:nt
     %Reapply boundary conditions
     intensity(nx,:,:) = 0.0;
@@ -120,7 +120,7 @@ for i=1:nt
     %intensity(:,1,1:na/2) = intensity(:,ny-1,1:na/2); 
     %intensity(:,ny,na/2:na) = intensity(:,2,na/2:na); 
     %Inject beam at center of LHS boundary with mu_x=0.333, -0.3333
-    intensity(1,ny/2,1) = 1.0;
+    %intensity(1,ny/2,1) = 1.0;
     %intensity(1,ny/2,7) = 1.0;
     
     %Box periodic boundary conditions
@@ -189,8 +189,6 @@ for i=1:nt
             mu(j,1)*dt/dx*(i_flux(2:nx-1,2:ny-1,1) - A(2:nx-1,2:ny-1)) + ...
             mu(j,2)*dt/dy*(i_flux(2:nx-1,2:ny-1,2) - B(2:nx-1,2:ny-1)); 
     end %end of ray loop
-    %ONLY NEEDED WHEN DISABLING SOURCE TERM SOLVES
-    intensity = intensity + net_flux; 
     %Substep #2: Implicitly advance the absorption source terms at each
     %cell, for all rays in a cell 
     for k=2:nx-1 %rays must be solved together
@@ -310,31 +308,32 @@ for i=1:nt
 %              xlabel(x_label);
 %              title(time_title);
 %              colorbar
+
             %Plot each angular intensity (recall, ntheta must be even)
-              for j=1:na/2
-                  hi = subplot(2,3,j); 
-                  h = pcolor(xx,yy,intensity(:,:,j)');
-                  set(h, 'EdgeColor', 'none');
-                  x_label = sprintf('mu =(%f, %f)',mu(j,1),mu(j,2));
-                  time_title = sprintf('t = %f (s)',time);
-                  xlabel(x_label);
-                  title(time_title);
-                  colorbar
-              end
+%               for j=1:na/2
+%                   hi = subplot(2,3,j); 
+%                   h = pcolor(xx,yy,intensity(:,:,j)');
+%                   set(h, 'EdgeColor', 'none');
+%                   x_label = sprintf('mu =(%f, %f)',mu(j,1),mu(j,2));
+%                   time_title = sprintf('t = %f (s)',time);
+%                   xlabel(x_label);
+%                   title(time_title);
+%                   colorbar
+%               end
 
 %Section 5.2 tests
 %this is a projection!
-% for i=1:na
-%     if mu(i,3) > 0.5
-%         %mu_z = 0.88
-%         quiver(0,0,intensity(2,2,i).*mu(i,1), intensity(2,2,i).*mu(i,2),'-b');
-%     else
-%         quiver(0,0,intensity(2,2,i).*mu(i,1), intensity(2,2,i).*mu(i,2),'-k');
-%     end
-% hold on;
-% 
-% end
-% hold off; 
+for i=1:na
+    if mu(i,3) > 0.5
+        %mu_z = 0.88
+        quiver(0,0,intensity(nx/2,ny/2,i).*mu(i,1), intensity(nx/2,ny/2,i).*mu(i,2),'-b');
+    else
+        quiver(0,0,intensity(nx/2,ny/2,i).*mu(i,1), intensity(nx/2,ny/2,i).*mu(i,2),'-k');
+    end
+hold on;
+
+end
+hold off; 
 
 %initial condition for equilibirium test
 %intensity(:,:,:) = 1/(4*pi);
