@@ -13,9 +13,9 @@ format long;
 %Therefore, we only do the positive hemisphere about the midplane, where
 %the z-axis is the polar axis. 
 %In 2D,
-num_rays = N*(N+2)/2; %Up to 168
+num_rays = N*(N+2)/2; %Up to 84 in 2d
 num_rays_per_octant = num_rays/4;
-direction_cosines = zeros(num_rays,3);
+direction_cosines = zeros(num_rays,2);
 point_weights = zeros(num_rays,1);
 level_weights = zeros(N/2,1); 
 
@@ -63,7 +63,6 @@ for i=1:N/2
        ray_count = ray_count +1;
        direction_cosines(ray_count,1) = ordinates(i);
        direction_cosines(ray_count,2) = ordinates(j);
-       direction_cosines(ray_count,3) = ordinates(k);
        if N <= 12 %system of equations is lin. ind. iff N<=12
        ip = permutation(i,j,k,pl,np);
        if ip == -1 %ray indices havent been loaded yet
@@ -86,18 +85,16 @@ assert(ray_count == num_rays_per_octant);
 %(must be a better way of doing this)
 direction_cosines(ray_count+1:2*ray_count,1) = -direction_cosines(1:ray_count,1);
 direction_cosines(ray_count+1:2*ray_count,2) = direction_cosines(1:ray_count,2);
-direction_cosines(ray_count+1:2*ray_count,3) = direction_cosines(1:ray_count,3);
 ray_count = ray_count*2;
 %Symmetry: reflect across first axis
 direction_cosines(ray_count+1:2*ray_count,1) = direction_cosines(1:ray_count,1);
 direction_cosines(ray_count+1:2*ray_count,2) = -direction_cosines(1:ray_count,2);
-direction_cosines(ray_count+1:2*ray_count,3) = direction_cosines(1:ray_count,3);
 ray_count = ray_count*2;
 %Material symmetry: do not reflect across final axis
 
 %test ray normalization
 %some of these norms have a deviation from 1.0 in the 15th decimal place
-assert(all((abs(sum((direction_cosines.*direction_cosines),2) - ones(num_rays,1)) < 1e-12)));
+%assert(all((abs(sum((direction_cosines.*direction_cosines),2) - ones(num_rays,1)) < 1e-12)));
 
 %test output in unit sphere
 %quiver3(zeros(ray_count,1),zeros(ray_count,1),zeros(ray_count,1), ...

@@ -4,15 +4,15 @@ function [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,
 [nx,ny,na] = size(intensity);
 %Eddington moments
 J = zeros(nx,ny);
-H = zeros(nx,ny,3);
-K = zeros(nx,ny,3,3);
+H = zeros(nx,ny,2);
+K = zeros(nx,ny,2,2);
 for i=1:nx
     for j=1:ny
         for k=1:na
             J(i,j) = J(i,j) + intensity(i,j,k)*pw(k);
-            for l=1:3
+            for l=1:2
                 H(i,j,l) = H(i,j,l) + intensity(i,j,k)*pw(k)*mu(k,l); 
-                for m=1:3
+                for m=1:2
                     K(i,j,l,m) = K(i,j,l,m) + intensity(i,j,k)*pw(k)*mu(k,l)*mu(k,m); 
                 end
             end

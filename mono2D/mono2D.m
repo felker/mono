@@ -25,7 +25,7 @@ nt = 36;
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
-delta_c = 1e-6; %error tolerance for NR convergence
+delta_c = 1e-10; %error tolerance for NR convergence
 
 %------------------------ BUILD MESH ------------------ %
 %Fixed Background Fluid Velocity 
@@ -75,11 +75,11 @@ intensity(:,:,:) = 1.00000/(4*pi);
 
 %------------------------ PRE-TIMESTEPPING SETUP ------------------ %
 %Calculate Radiation CFL numbers
-cfl_mu = C*dt*abs(mu)*[1/dx 1/dy 0]';
+cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 %set dt to have max cfl of 0.4
 dt = dt*0.4/max(cfl_mu);
 %Recalculate radiation CFL
-cfl_mu = C*dt*abs(mu)*[1/dx 1/dy 0]';
+cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 assert(min(abs(cfl_mu) <= ones(na,1))); 
 
 %------------------------ VELOCITY TERMS ------------------------------ %
@@ -113,7 +113,7 @@ for i=1:2
 end
 %------------------------ OUTPUT VARIABLES------------------------------ %
 output_interval = 4; 
-num_output = 4; %number of data to output
+num_output = 6; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
 y_out = zeros(num_pts+1,num_output);
@@ -125,8 +125,9 @@ for i=0:nt
     %Substep 0: Time series output, boundary condition, moments update
     %Update moments
     [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,c);
+    photon_momentum = P*rad_flux/C;
     if ~mod(i,output_interval)
-        [y_out] = time_series_output(y_out,time_out,rad_energy,rad_flux,rad_pressure,v,nx,ny,C,GasMomentum,GasKE,GasTE);
+        [y_out] = time_series_output(y_out,time_out,rad_energy,rad_flux,rad_pressure,v,nx,ny,C,GasMomentum,GasKE,GasTE,photon_momentum);
     end
 
     %Reapply boundary conditions
@@ -155,7 +156,6 @@ for i=0:nt
     intensity(nx,:,4:6) = intensity(2,:,4:6); 
     intensity(nx,:,10:12) = intensity(2,:,10:12); 
     
-
     %Substep #1: Explicitly advance transport term
     net_flux = zeros(nx,ny,na);
     for j=1:na %do all nx, ny at once
@@ -225,6 +225,7 @@ for i=0:nt
             end
         end
     end
+    old_velocity = v; 
     v = new_velocity;
     %Substep #2: Implicitly advance the absorption source terms at each
     %cell, for all rays in a cell 
@@ -287,14 +288,15 @@ for i=0:nt
             intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1 + net_flux(k,l,na);
             intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1) + D(1:na-1) + squeeze(net_flux(k,l,1:na-1)); 
             
-            %Fake update gas quantities as it absorbs internal energy
+            v = old_velocity; 
+            %Update gas quantities as it absorbs internal energy
             %density?
             %change in gas internal energy
             dGasTE = (density(k,l)*R/adiabatic)*(temp(k,l) - temp_old);
             dGasMomentum = zeros(2,1);
             for r=1:2
                 for n=1:na
-                    dGasMomentum(r) = dGasMomentum(r) - P/C*(intensity(k,l,n) - I_old(n))*mu(n,r)*pw(n);                 
+                    dGasMomentum(r) = dGasMomentum(r) - P*(intensity(k,l,n) - I_old(n))*mu(n,r)*pw(n);                 
                 end
                 GasMomentum(k,l,r) = GasMomentum(k,l,r) + dGasMomentum(r);
             end
@@ -303,6 +305,11 @@ for i=0:nt
                 (density(k,l)*squeeze(v(k,l,:)))'*(density(k,l)*squeeze(v(k,l,:))))/(2*density(k,l));
             GasKE(k,l) = GasKE(k,l) +dGasKE;  
             GasTE(k,l) = GasTE(k,l) +dGasTE;  
+            
+            %Change fluid velocity?
+            v(k,l,1) = GasMomentum(k,l,1)/density(k,l);
+                v(k,l,2) = GasMomentum(k,l,2)/density(k,l);
+
         end
     end
         %Substep #3: Implicitly advance the scattering source terms
