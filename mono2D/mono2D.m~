@@ -21,7 +21,7 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.002;
-nt = 128;
+nt = 36;
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
@@ -105,13 +105,14 @@ for i=1:nx
 end
 GasMomentum = zeros(nx,ny,2); 
 GasKE = zeros(nx,ny);
+GasTE = R/adiabatic*density.*temp; 
 for i=1:2
     GasMomentum(:,:,i) = (density.*v(:,:,i));
-    GasKE(:,:) = GasKE(:,:) + v(:,:,i).^2;
+    GasKE(:,:) = GasKE(:,:) + v(:,:,i).^2/C^;
 end
 %------------------------ OUTPUT VARIABLES------------------------------ %
-output_interval = 16; 
-num_output = 2; %number of data to output
+output_interval = 4; 
+num_output = 4; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
 y_out = zeros(num_pts+1,num_output);
@@ -124,14 +125,14 @@ for i=0:nt
     %Update moments
     [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,c);
     if ~mod(i,output_interval)
-        [y_out] = time_series_output(y_out,time_out,rad_energy,rad_flux,rad_pressure,v,nx,ny,C,);
+        [y_out] = time_series_output(y_out,time_out,rad_energy,rad_flux,rad_pressure,v,nx,ny,C,GasMomentum,GasKE,GasTE);
     end
 
     %Reapply boundary conditions
-     intensity(nx,:,:) = 0.0; 
-     intensity(:,ny,:) = 0.0;
-     intensity(:,1,:) = 0.0;
-     intensity(1,:,:) = 0.0;
+%      intensity(nx,:,:) = 0.0; 
+%      intensity(:,ny,:) = 0.0;
+%      intensity(:,1,:) = 0.0;
+%      intensity(1,:,:) = 0.0;
 
     %intensity(1,2:ny-1,:) = 0.0; %all first row elements (physically, left bndry)
 
@@ -145,13 +146,13 @@ for i=0:nt
     %intensity(1,ny/2,7) = 1.0;
     
     %Box periodic boundary conditions
-%     intensity(:,1,1:na/2) = intensity(:,ny-1,1:na/2); 
-%     intensity(:,ny,na/2:na) = intensity(:,2,na/2:na); 
-%     %mu_x arent easily divided into positive and negative
-%     intensity(1,:,1:3) = intensity(nx-1,:,1:3); 
-%     intensity(1,:,7:9) = intensity(nx-1,:,7:9); 
-%     intensity(nx,:,4:6) = intensity(2,:,4:6); 
-%     intensity(nx,:,10:12) = intensity(2,:,10:12); 
+    intensity(:,1,1:na/2) = intensity(:,ny-1,1:na/2); 
+    intensity(:,ny,na/2:na) = intensity(:,2,na/2:na); 
+    %mu_x arent easily divided into positive and negative
+    intensity(1,:,1:3) = intensity(nx-1,:,1:3); 
+    intensity(1,:,7:9) = intensity(nx-1,:,7:9); 
+    intensity(nx,:,4:6) = intensity(2,:,4:6); 
+    intensity(nx,:,10:12) = intensity(2,:,10:12); 
     
 
     %Substep #1: Explicitly advance transport term
@@ -287,19 +288,20 @@ for i=0:nt
             %Fake update gas quantities as it absorbs internal energy
             %density?
             %change in gas internal energy
-            dEt = (density(k,l)*R/adiabatic)*(temp(k,l) - temp_old);
+            dGasTE = (density(k,l)*R/adiabatic)*(temp(k,l) - temp_old);
             dGasMomentum = zeros(2,1);
             for r=1:2
                 for n=1:na
                     dGasMomentum(r) = dGasMomentum(r) - P/C*(intensity(k,l,n) - I_old(n))*mu(n,r)*pw(n);                 
                 end
+                GasMomentum(k,l,r) = GasMomentum(k,l,r) + dGasMomentum(r);
             end
-            GasMomentum(k,l,:) = GasMomentum(k,l,:) + dGasMomentum;
             %no change in momentum due to isotropy
             dGasKE =((density(k,l)*squeeze(v(k,l,:)) + dGasMomentum)'*(density(k,l)*squeeze(v(k,l,:)) + dGasMomentum) - ...
                 (density(k,l)*squeeze(v(k,l,:)))'*(density(k,l)*squeeze(v(k,l,:))))/(2*density(k,l));
             GasKE(k,l) = GasKE(k,l) +dGasKE;  
-            end
+            GasTE(k,l) = GasTE(k,l) +dGasTE;  
+        end
     end
         %Substep #3: Implicitly advance the scattering source terms
     

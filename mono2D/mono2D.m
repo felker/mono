@@ -105,6 +105,8 @@ for i=1:nx
 end
 GasMomentum = zeros(nx,ny,2); 
 GasKE = zeros(nx,ny);
+%adiabatic -1? doesnt make sense with dGasTE formula
+GasTE = R/(adiabatic-1)*density.*temp; 
 for i=1:2
     GasMomentum(:,:,i) = (density.*v(:,:,i));
     GasKE(:,:) = GasKE(:,:) + v(:,:,i).^2;
@@ -124,14 +126,14 @@ for i=0:nt
     %Update moments
     [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,c);
     if ~mod(i,output_interval)
-        [y_out] = time_series_output(y_out,time_out,rad_energy,rad_flux,rad_pressure,v,nx,ny,C,GasMomentum,GasKE);
+        [y_out] = time_series_output(y_out,time_out,rad_energy,rad_flux,rad_pressure,v,nx,ny,C,GasMomentum,GasKE,GasTE);
     end
 
     %Reapply boundary conditions
-     intensity(nx,:,:) = 0.0; 
-     intensity(:,ny,:) = 0.0;
-     intensity(:,1,:) = 0.0;
-     intensity(1,:,:) = 0.0;
+%      intensity(nx,:,:) = 0.0; 
+%      intensity(:,ny,:) = 0.0;
+%      intensity(:,1,:) = 0.0;
+%      intensity(1,:,:) = 0.0;
 
     %intensity(1,2:ny-1,:) = 0.0; %all first row elements (physically, left bndry)
 
@@ -145,13 +147,13 @@ for i=0:nt
     %intensity(1,ny/2,7) = 1.0;
     
     %Box periodic boundary conditions
-%     intensity(:,1,1:na/2) = intensity(:,ny-1,1:na/2); 
-%     intensity(:,ny,na/2:na) = intensity(:,2,na/2:na); 
-%     %mu_x arent easily divided into positive and negative
-%     intensity(1,:,1:3) = intensity(nx-1,:,1:3); 
-%     intensity(1,:,7:9) = intensity(nx-1,:,7:9); 
-%     intensity(nx,:,4:6) = intensity(2,:,4:6); 
-%     intensity(nx,:,10:12) = intensity(2,:,10:12); 
+    intensity(:,1,1:na/2) = intensity(:,ny-1,1:na/2); 
+    intensity(:,ny,na/2:na) = intensity(:,2,na/2:na); 
+    %mu_x arent easily divided into positive and negative
+    intensity(1,:,1:3) = intensity(nx-1,:,1:3); 
+    intensity(1,:,7:9) = intensity(nx-1,:,7:9); 
+    intensity(nx,:,4:6) = intensity(2,:,4:6); 
+    intensity(nx,:,10:12) = intensity(2,:,10:12); 
     
 
     %Substep #1: Explicitly advance transport term
@@ -159,7 +161,8 @@ for i=0:nt
     for j=1:na %do all nx, ny at once
         %Split the transport term into diffusion and advection terms
         %Photon diffusion at nearly the speed of light
-        tau = (10*(dx/mu(j,1) + dy/mu(j,2))*(rho_a+rho_s)).^2; %Eq 14 in Jiang14
+        %tau = (10*(dx/mu(j,1) + dy/mu(j,2))*(rho_a+rho_s)).^2; %Eq 14 in Jiang14
+        tau = (10*(dx)*(rho_a+rho_s)).^2; %Eq 14 in Jiang14
         %Correct for division by zero 
         for k=1:nx
             for l=1:ny
@@ -287,7 +290,7 @@ for i=0:nt
             %Fake update gas quantities as it absorbs internal energy
             %density?
             %change in gas internal energy
-            dEt = (density(k,l)*R/adiabatic)*(temp(k,l) - temp_old);
+            dGasTE = (density(k,l)*R/adiabatic)*(temp(k,l) - temp_old);
             dGasMomentum = zeros(2,1);
             for r=1:2
                 for n=1:na
@@ -299,7 +302,8 @@ for i=0:nt
             dGasKE =((density(k,l)*squeeze(v(k,l,:)) + dGasMomentum)'*(density(k,l)*squeeze(v(k,l,:)) + dGasMomentum) - ...
                 (density(k,l)*squeeze(v(k,l,:)))'*(density(k,l)*squeeze(v(k,l,:))))/(2*density(k,l));
             GasKE(k,l) = GasKE(k,l) +dGasKE;  
-            end
+            GasTE(k,l) = GasTE(k,l) +dGasTE;  
+        end
     end
         %Substep #3: Implicitly advance the scattering source terms
     
