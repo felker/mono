@@ -3,7 +3,9 @@
 %Monotonic Upwind Interpolation
 %Mixed frame to O(v/c)
 
+% TO-DO:
 %RENAME RHO_A RHO_S TO SIGMAS
+%NEED BETTER WAY OF PASSING READ-ONLY INFO TO OUTPUT FUNCTIONS
 
 %------------------------ PARAMETERS ------------------ %
 clear all;
@@ -19,9 +21,7 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.002;
-nt = 100;
-out_count = 0;
-output_interval = 10; 
+nt = 36;
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
@@ -71,6 +71,8 @@ density = ones(nx,ny);
 temp = ones(nx,ny); 
 
 v(:,:,1) = 0.3*C; 
+intensity(:,:,:) = 1.00000/(4*pi); 
+
 %------------------------ PRE-TIMESTEPPING SETUP ------------------ %
 %Calculate Radiation CFL numbers
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy 0]';
@@ -78,8 +80,9 @@ cfl_mu = C*dt*abs(mu)*[1/dx 1/dy 0]';
 dt = dt*0.4/max(cfl_mu);
 %Recalculate radiation CFL
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy 0]';
+assert(min(abs(cfl_mu) <= ones(na,1))); 
 
-%------------------------ VELOCITY  ------------------------------ %
+%------------------------ VELOCITY TERMS ------------------------------ %
 %Calculate dot product of local fluid velocity and radiation rays
 nv = zeros(nx,ny,na);
 %Tensor component in the O(v/c) absorption quadrature terms
@@ -100,17 +103,35 @@ for i=1:nx
         end
     end
 end
+GasMomentum = zeros(nx,ny,2); 
+GasKE = zeros(nx,ny);
+for i=1:2
+    GasMomentum(:,:,i) = (density.*v(:,:,i));
+    GasKE(:,:) = GasKE(:,:) + v(:,:,i).^2;
+end
+%------------------------ OUTPUT VARIABLES------------------------------ %
+output_interval = 4; 
+num_output = 4; %number of data to output
+num_pts = nt/output_interval; 
+time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
+y_out = zeros(num_pts+1,num_output);
 
 %Explicit-Implicit operator splitting scheme
 %-------------------------------------------
-%assert(min(abs(cfl_mu) <= ones(ntheta,1))); 
-intensity(:,:,:) = 1.0/(4*pi); 
-for i=1:nt
+for i=0:nt
+    time = dt*i %#ok<NOPTS> 
+    %Substep 0: Time series output, boundary condition, moments update
+    %Update moments
+    [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,c);
+    if ~mod(i,output_interval)
+        [y_out] = time_series_output(y_out,time_out,rad_energy,rad_flux,rad_pressure,v,nx,ny,C,GasMomentum,GasKE);
+    end
+
     %Reapply boundary conditions
-    intensity(nx,:,:) = 0.0;
-    intensity(:,ny,:) = 0.0;
-    intensity(:,1,:) = 0.0;
-    intensity(1,:,:) = 0.0;
+     intensity(nx,:,:) = 0.0; 
+     intensity(:,ny,:) = 0.0;
+     intensity(:,1,:) = 0.0;
+     intensity(1,:,:) = 0.0;
 
     %intensity(1,2:ny-1,:) = 0.0; %all first row elements (physically, left bndry)
 
@@ -132,8 +153,7 @@ for i=1:nt
 %     intensity(nx,:,4:6) = intensity(2,:,4:6); 
 %     intensity(nx,:,10:12) = intensity(2,:,10:12); 
     
-    %Update moments
-    [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,C);
+
     %Substep #1: Explicitly advance transport term
     net_flux = zeros(nx,ny,na);
     for j=1:na %do all nx, ny at once
@@ -182,6 +202,7 @@ for i=1:nt
         
         %should also turn off advection velocity if the projection along
         %axis is zero in rare cases
+        %Also, should take into account velocity gradient between cells
         i_flux = upwind_interpolate2D(advection_term,method,mu(j,:),dt,dx,dy,absV);
         A = circshift(i_flux(:,:,1),[-1 0]);
         B = circshift(i_flux(:,:,2),[0 -1]);
@@ -189,6 +210,19 @@ for i=1:nt
             mu(j,1)*dt/dx*(i_flux(2:nx-1,2:ny-1,1) - A(2:nx-1,2:ny-1)) + ...
             mu(j,2)*dt/dy*(i_flux(2:nx-1,2:ny-1,2) - B(2:nx-1,2:ny-1)); 
     end %end of ray loop
+    %Substep 1.2: Estimate flow velocity at t= n+1/2
+    new_velocity = zeros(nx,ny,2);
+    for k=2:nx-1 %rays must be solved together
+        for l=2:ny-1
+            for m=1:2
+            vel_update = @(x) x - v(k,l,m) - 0.5*dt*P*(rho_a(k,l) + rho_s(k,l))*(C/P*v(k,l,m) + ...
+                rad_flux(k,l,m)./density(k,l) - C/P*x - ...
+                x./(C*density(k,l))*(rad_energy(k,l) + rad_pressure(k,l,m,m)));
+            new_velocity(k,l,m) = fzero(vel_update, v(k,l,m));
+            end
+        end
+    end
+    v = new_velocity;
     %Substep #2: Implicitly advance the absorption source terms at each
     %cell, for all rays in a cell 
     for k=2:nx-1 %rays must be solved together
@@ -259,102 +293,19 @@ for i=1:nt
                 for n=1:na
                     dGasMomentum(r) = dGasMomentum(r) - P/C*(intensity(k,l,n) - I_old(n))*mu(n,r)*pw(n);                 
                 end
+                GasMomentum(k,l,r) = GasMomentum(k,l,r) + dGasMomentum(r);
             end
             %no change in momentum due to isotropy
             dGasKE =((density(k,l)*squeeze(v(k,l,:)) + dGasMomentum)'*(density(k,l)*squeeze(v(k,l,:)) + dGasMomentum) - ...
-                (density(k,l)*squeeze(v(k,l,:)))'*(density(k,l)*squeeze(v(k,l,:))))/(2*density(k,l));           
+                (density(k,l)*squeeze(v(k,l,:)))'*(density(k,l)*squeeze(v(k,l,:))))/(2*density(k,l));
+            GasKE(k,l) = GasKE(k,l) +dGasKE;  
             end
-        end
-        time = dt*i %#ok<NOPTS>
+    end
         %Substep #3: Implicitly advance the scattering source terms
     
-%------------------------ OUTPUT ------------------ %
+%------------------------ NON-TIME SERIES OUTPUT ------------------ %
     if ~mod(i,output_interval)
-%      out_count = out_count +1; 
-%     time_plot(out_count) = time; 
-%     y_out(out_count) = rad_energy(nx/2,ny/2);
-%     y_out2(out_count) = temp(nx/2,ny/2)^4;
-% % %     figure(1);
-%       plot(time_plot,y_out,'-o',time_plot,y_out2,'-o');
-%       legend('E_r','T^4');
-
-%      xlabel('time (s)');
-%      ylabel('E_r,T^4');
-%      title('\sigma_a = 1');
-   
-%     figure(2);
- %      pcolor(xx(2:nx-1,1),yy(2:ny-1,1),rad_energy(2:nx-1,2:ny-1)')
-   %colorbar
-%         hi = subplot(2,3,1); 
-%         h = pcolor(xx,yy,intensity(:,:,1)');
-%         set(h, 'EdgeColor', 'none');
-%         x_label = sprintf('mu =(%f, %f)',mu(1,1),mu(1,2));
-%         xlabel(x_label);
-%         colorbar
-             %hi = subplot(1,2,1); 
-
- %            h = pcolor(yy(2:ny-1),xx(2:nx-1),rad_energy(2:nx-1,2:ny-1));
-             %set(h, 'EdgeColor', 'none');
-             %x_label = sprintf('mu =(%f, %f)',mu(1,1),mu(1,2));
-%             time_title = sprintf('t = %f (s)',time);
-             %xlabel(x_label);
- %            title(time_title);
-  %           colorbar
-%                           hi = subplot(1,2,2); 
-%              h = pcolor(yy,xx,intensity(:,:,7));
-%              set(h, 'EdgeColor', 'none');
-%              x_label = sprintf('mu =(%f, %f)',mu(7,1),mu(7,2));
-%              time_title = sprintf('t = %f (s)',time);
-%              xlabel(x_label);
-%              title(time_title);
-%              colorbar
-
-            %Plot each angular intensity (recall, ntheta must be even)
-%               for j=1:na/2
-%                   hi = subplot(2,3,j); 
-%                   h = pcolor(xx,yy,intensity(:,:,j)');
-%                   set(h, 'EdgeColor', 'none');
-%                   x_label = sprintf('mu =(%f, %f)',mu(j,1),mu(j,2));
-%                   time_title = sprintf('t = %f (s)',time);
-%                   xlabel(x_label);
-%                   title(time_title);
-%                   colorbar
-%               end
-
-%Section 5.2 tests
-%this is a projection!
-for i=1:na
-    if mu(i,3) > 0.5
-        %mu_z = 0.88
-        quiver(0,0,intensity(nx/2,ny/2,i).*mu(i,1), intensity(nx/2,ny/2,i).*mu(i,2),'-b');
-    else
-        quiver(0,0,intensity(nx/2,ny/2,i).*mu(i,1), intensity(nx/2,ny/2,i).*mu(i,2),'-k');
-    end
-hold on;
-
-end
-hold off; 
-
-%initial condition for equilibirium test
-%intensity(:,:,:) = 1/(4*pi);
-% %this is a projection!
-% hold on;
-% for i=1:na
-%     if mu(i,3) > 0.5
-%         %mu_z = 0.88
-%         quiver(0,0,intensity(2,2,i).*mu(i,1), intensity(2,2,i).*mu(i,2),'-b');
-%     else
-%         quiver(0,0,intensity(2,2,i).*mu(i,1), intensity(2,2,i).*mu(i,2),'-k');
-%     end
-% 
-% end
-% 
-% return;
-
-         %symmetry test
-         %fliplr(intensity(2:nx-1,2:ny-1,j)) - intensity(2:nx-1,2:ny-1,j) 
- 
-            pause(1.0);
+        %static_output(); 
     end
 end
 

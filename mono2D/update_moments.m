@@ -1,4 +1,4 @@
-function [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,C)
+function [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,c)
 %UPDATE_MOMENTS Given the current intensity, calculate the angular moments
 % of the radiation field 
 [nx,ny,na] = size(intensity);
@@ -20,7 +20,7 @@ for i=1:nx
     end
 end
 rad_energy = 4*pi*J;
-rad_flux = 4*pi*C*H; %c or C?
+rad_flux = 4*pi*c*H; %c or C?
 rad_pressure = 4*pi*K;
 end
 
