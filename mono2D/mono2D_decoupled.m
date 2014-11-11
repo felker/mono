@@ -87,7 +87,7 @@ intensity(:,:,:) = 1.00000/(4*pi);
 %Calculate Radiation CFL numbers
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 %set dt to have max cfl of 0.4
-dt = dt*0.8/max(cfl_mu);
+dt = dt*0.1/max(cfl_mu);
 %Recalculate radiation CFL
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 assert(min(abs(cfl_mu) <= ones(na,1))); 
@@ -105,7 +105,7 @@ end
 
 %------------------------ OUTPUT VARIABLES------------------------------ %
 output_interval = 2; 
-num_output = 6; %number of data to output
+num_output = 8; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
 y_out = zeros(num_pts+1,num_output);
@@ -193,6 +193,10 @@ for i=0:nt
             dt/dy*0.5*((velocity_term(is:ie,js+1:je+1)+velocity_term(is:ie,js:je))*i_flux(is:ie,js+1:je+1) -...
             (velocity_term(is:ie,js-1:je-1)+velocity_term(is:ie,js:je))*i_flux(is:ie,js:je));
     end    %end of ray trace loop, y-direction
+    intensity = intensity - net_flux; 
+        [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,c);
+    net_flux(nx/2,ny/2)
+    
     %Substep 1.2: Estimate flow velocity at t= n+1/2
     new_velocity = zeros(nx,ny,2);
     for k=1:nx %rays must be solved together
@@ -266,13 +270,16 @@ for i=0:nt
                 end
             end
             %Explicitly update all other rays 
-            intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1 + net_flux(k,l,na);
-            intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1) + D(1:na-1) + squeeze(net_flux(k,l,1:na-1)); 
+%             intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1 + net_flux(k,l,na);
+%             intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1) + D(1:na-1) + squeeze(net_flux(k,l,1:na-1)); 
+            intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1;
+            intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1) + D(1:na-1);
+
             v(k,l,:) = old_velocity(k,l,:); 
             %Update gas quantities as it absorbs internal energy
             %density?
             %change in gas internal energy
-            dGasTE = (density(k,l)*R/adiabatic)*(temp(k,l) - temp_old);
+            dGasTE = (density(k,l)*R/(adiabatic)*(temp(k,l) - temp_old));
             dGasMomentum = zeros(2,1);
             for r=1:2
                 for n=1:na
@@ -280,7 +287,6 @@ for i=0:nt
                 end
                 GasMomentum(k,l,r) = GasMomentum(k,l,r) + dGasMomentum(r);
             end
-            %no change in momentum due to isotropy
             dGasKE =((density(k,l)*squeeze(v(k,l,:)) + dGasMomentum)'*(density(k,l)*squeeze(v(k,l,:)) + dGasMomentum) - ...
                 (density(k,l)*squeeze(v(k,l,:)))'*(density(k,l)*squeeze(v(k,l,:))))/(2*density(k,l));
             GasKE(k,l) = GasKE(k,l) +dGasKE;  

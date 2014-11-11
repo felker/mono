@@ -12,18 +12,19 @@ end
 out_count = out_count+1;
 
 %Set to 2 if you want to ignore the initial condition step, t=0
-start_index = 2; 
+start_index = 1; 
 
 %Jiang14 Figure 2
 y_out(out_count,1) = rad_flux(nx/2,ny/2,1);
 %advective flux
-y_out(out_count,2) = v(nx/2,ny/2,1)*(rad_energy(nx/2,ny/2) + rad_pressure(nx/2,ny/2,1,1))/C; 
-
+y_out(out_count,2) = v(nx/2,ny/2,1)*(rad_energy(nx/2,ny/2) + rad_pressure(nx/2,ny/2,1,1))/C;
 y_out(out_count,3) = GasMomentum(nx/2,ny/2,1)+photon_momentum(nx/2,ny/2,1);
 y_out(out_count,4) = GasMomentum(nx/2,ny/2,1);
 y_out(out_count,5) = GasTE(nx/2,ny/2)+GasKE(nx/2,ny/2)+rad_energy(nx/2,ny/2);
 y_out(out_count,6) = GasTE(nx/2,ny/2)+GasKE(nx/2,ny/2);
-
+y_out(out_count,7) = rad_pressure(nx/2,ny/2,1,1)/rad_energy(nx/2,ny/2);
+y_out(out_count,8) = rad_pressure(nx/2,ny/2,2,2)/rad_energy(nx/2,ny/2);
+figure(1);
 hi = subplot(3,1,1);
 plot(time_out(start_index:out_count),y_out(start_index:out_count,1)','-',time_out(start_index:out_count),y_out(start_index:out_count,2)','-');
 axis([0 0.1 0.25 0.5]);
@@ -40,6 +41,14 @@ plot(time_out(start_index:out_count),y_out(start_index:out_count,5)','--',time_o
 axis([0 0.1 4.5 7.5]);
 xlabel('time (s)');
 legend('E_tot','E_gas');
+
+figure(2);
+axis([0 0.1 0.3 0.4]);
+xlabel('time (s)');
+legend('f_{x,x}','f_{y,y}');
+plot(time_out(start_index:out_count),y_out(start_index:out_count,7)','-k',time_out(start_index:out_count),y_out(start_index:out_count,8)','--k');
+
+
 
 
 
