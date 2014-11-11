@@ -21,7 +21,7 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.002;
-nt = 100;
+nt = 24;
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
@@ -87,7 +87,7 @@ intensity(:,:,:) = 1.00000/(4*pi);
 %Calculate Radiation CFL numbers
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 %set dt to have max cfl of 0.4
-dt = dt*0.9/max(cfl_mu);
+dt = dt*0.8/max(cfl_mu);
 %Recalculate radiation CFL
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 assert(min(abs(cfl_mu) <= ones(na,1))); 
@@ -276,7 +276,7 @@ for i=0:nt
             dGasMomentum = zeros(2,1);
             for r=1:2
                 for n=1:na
-                    dGasMomentum(r) = dGasMomentum(r) - P*(intensity(k,l,n) - I_old(n))*mu(n,r)*pw(n);                 
+                    dGasMomentum(r) = dGasMomentum(r) - P/C*(intensity(k,l,n) - I_old(n))*mu(n,r)*pw(n);                 
                 end
                 GasMomentum(k,l,r) = GasMomentum(k,l,r) + dGasMomentum(r);
             end
