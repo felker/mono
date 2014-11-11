@@ -26,12 +26,21 @@ y_out(out_count,6) = GasTE(nx/2,ny/2)+GasKE(nx/2,ny/2);
 
 hi = subplot(3,1,1);
 plot(time_out(start_index:out_count),y_out(start_index:out_count,1)','-',time_out(start_index:out_count),y_out(start_index:out_count,2)','-');
-axis([0 0.1 0.25 0.5])
+axis([0 0.1 0.25 0.5]);
+legend('F_{r,x}','F_{v,x}');
+xlabel('time (s)');
 hi = subplot(3,1,2);
 plot(time_out(start_index:out_count),y_out(start_index:out_count,3)','--',time_out(start_index:out_count),y_out(start_index:out_count,4)','-');
-axis([0 0.1 2.9 3.15])
+axis([0 0.1 2.9 3.15]);
+xlabel('time (s)');
+legend('p_{x,tot}','p_{x,gas}');
+
 hi = subplot(3,1,3);
 plot(time_out(start_index:out_count),y_out(start_index:out_count,5)','--',time_out(start_index:out_count),y_out(start_index:out_count,6)','-');
+axis([0 0.1 4.5 7.5]);
+xlabel('time (s)');
+legend('E_tot','E_gas');
+
 
 
 %pause(1.0);

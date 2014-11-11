@@ -77,7 +77,7 @@ intensity(:,:,:) = 1.00000/(4*pi);
 %Calculate Radiation CFL numbers
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 %set dt to have max cfl of 0.4
-dt = dt*0.4/max(cfl_mu);
+dt = dt*0.8/max(cfl_mu);
 %Recalculate radiation CFL
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 assert(min(abs(cfl_mu) <= ones(na,1))); 
@@ -176,6 +176,9 @@ for i=0:nt
         advection_term = (3*nv(:,:,j).*J).*(abs(rho_a+rho_s)>0);
 
         i_flux = upwind_interpolate2D(intensity(:,:,j) - advection_term/C,method,mu(j,:),dt,dx,dy,alpha*C);
+%         i_flux2 = upwind_interpolate2D_decoupled(mu(j,1)*(intensity(:,:,j) - advection_term/C),method,dt,dx,alpha*C*sign(mu(j,1)),nx,ny,1);
+%         intensity(:,:,j) - i_flux(:,:,1)
+
         A = circshift(i_flux(:,:,1),[-1 0]);
         B = circshift(i_flux(:,:,2),[0 -1]);
         net_flux(2:nx-1,2:ny-1,j) = (mu(j,1)*dt*C/dx*(i_flux(2:nx-1,2:ny-1,1) - A(2:nx-1,2:ny-1)) + ...
