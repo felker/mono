@@ -8,7 +8,7 @@
 %NEED BETTER WAY OF PASSING READ-ONLY INFO TO OUTPUT FUNCTIONS
 
 %------------------------ PARAMETERS ------------------ %
-clear all;
+%clear all;
 close all;
 nx = 32;
 ny = 32;
@@ -21,7 +21,7 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.002;
-nt = 100;
+nt = 16;
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
@@ -112,23 +112,6 @@ for i=0:nt
         [y_out] = time_series_output(y_out,time_out,rad_energy,rad_flux,rad_pressure,v,nx,ny,C,GasMomentum,GasKE,GasTE,photon_momentum);
     end
 
-    %Reapply boundary conditions
-%      intensity(nx,:,:) = 0.0; 
-%      intensity(:,ny,:) = 0.0;
-%      intensity(:,1,:) = 0.0;
-%      intensity(1,:,:) = 0.0;
-
-    %intensity(1,2:ny-1,:) = 0.0; %all first row elements (physically, left bndry)
-
-    %Setup for 2D crossing beams in Jiang14 and Davis12
-    %Periodic boundary conditions on y-boundaries, only for appropriate
-    %rays
-    %intensity(:,1,1:na/2) = intensity(:,ny-1,1:na/2); 
-    %intensity(:,ny,na/2:na) = intensity(:,2,na/2:na); 
-    %Inject beam at center of LHS boundary with mu_x=0.333, -0.3333
-    %intensity(1,ny/2,1) = 1.0;
-    %intensity(1,ny/2,7) = 1.0;
-    
     %Box periodic boundary conditions
     intensity(:,1,1:na/2) = intensity(:,ny-1,1:na/2); 
     intensity(:,ny,na/2:na) = intensity(:,2,na/2:na); 
@@ -137,13 +120,11 @@ for i=0:nt
     intensity(1,:,7:9) = intensity(nx-1,:,7:9); 
     intensity(nx,:,4:6) = intensity(2,:,4:6); 
     intensity(nx,:,10:12) = intensity(2,:,10:12); 
-    
-    %Substep #1: Explicitly advance transport term
+     %Substep #1: Explicitly advance transport term
     net_flux = zeros(nx,ny,na);
     for j=1:na %do all nx, ny at once
         %Split the transport term into diffusion and advection terms
         %Photon diffusion at nearly the speed of light
-        %tau = (10*(dx/mu(j,1) + dy/mu(j,2))*(rho_a+rho_s)).^2; %Eq 14 in Jiang14
         tau = (10*(dx)*(rho_a+rho_s)).^2; %Eq 14 in Jiang14
         %Correct for division by zero 
         for k=1:nx
@@ -155,46 +136,60 @@ for i=0:nt
                 end
             end
         end
-        %NEW open questions: 
-        %- ATHENA and I place our mu terms on different sides of the
-        %interpolation function: Does this matter in computaton of the van
-        %Leer coefficients?
-        
-        % Same for the velocity projections, nv. On the advection term or the
-        % advection velocity?
-        
-        % Can we do both directions at the same time?
-        
-        %where do we put the net flux? on the absorption term update?
-                
-        %KYLE FIX 11/9: divide nv*J by C !! this was in the paper, but I
-        %missed it
-        
-        %do I need to change the - IV/C term in the first substep to only
-        %happen if rho_a, rho_s are nonzero? This seems to make physical
-        %sense. YES
+         ave_interfaceV1 = 1.0;
+        ave_interfaceV2 = 1.0;
+       
+        %Advection with the fluid only if there are material terms
         advection_term = (3*nv(:,:,j).*J).*(abs(rho_a+rho_s)>0);
-
-        i_flux = upwind_interpolate2D(intensity(:,:,j) - advection_term/C,method,mu(j,:),dt,dx,dy,alpha*C);
-        A = circshift(i_flux(:,:,1),[-1 0]);
-        B = circshift(i_flux(:,:,2),[0 -1]);
-        net_flux(2:nx-1,2:ny-1,j) = (mu(j,1)*dt*C/dx*(i_flux(2:nx-1,2:ny-1,1) - A(2:nx-1,2:ny-1)) + ...
-            mu(j,2)*dt*C/dy*(i_flux(2:nx-1,2:ny-1,2) - B(2:nx-1,2:ny-1)));
-    
-        %Advection with fluid at fluid velocity
-        %Turn the advection term to zero in cells with zero material
-        %interaction
-        
+        i_flux = upwind_interpolate2D_decoupled(mu(j,1)*(intensity(:,:,j) - advection_term/C),method,dt,dx,alpha*C,nx,ny,1);
+        A = circshift(i_flux,[-1 0]);
+        net_flux(2:nx-1,2:ny-1,j) = dt*C/dx*(i_flux(2:nx-1,2:ny-1) - A(2:nx-1,2:ny-1));
         %should also turn off advection velocity if the projection along
         %axis is zero in rare cases
         %Also, should take into account velocity gradient between cells
-        i_flux = upwind_interpolate2D(advection_term,method,mu(j,:),dt,dx,dy,absV);
-        A = circshift(i_flux(:,:,1),[-1 0]);
-        B = circshift(i_flux(:,:,2),[0 -1]);
+        advection_term = (mu(j,1)^2*3*J).*(abs(rho_a+rho_s)>0);
+        velocity_term = v(2:nx-1,2:ny-1,1) + mu(j,2)*v(2:nx-1,2:ny-1,2)/mu(j,1);
+        i_flux = upwind_interpolate2D_decoupled(advection_term, method, dt, dx, v(:,:,1) + mu(j,2)*v(:,:,2)/mu(j,1), nx,ny,1);
+        %ave_interfaceV1 = circshift(velocity_term,[+1 0]) + velocity_term;
+        %ave_interfaceV2 = velocity_term + circshift(velocity_term,[-1 0]);
+        A = circshift(i_flux,[-1 0]);
         net_flux(2:nx-1,2:ny-1,j) = net_flux(2:nx-1,2:ny-1,j) + ...
-            mu(j,1)*dt/dx*(i_flux(2:nx-1,2:ny-1,1) - A(2:nx-1,2:ny-1)) + ...
-            mu(j,2)*dt/dy*(i_flux(2:nx-1,2:ny-1,2) - B(2:nx-1,2:ny-1)); 
-    end %end of ray loop
+            dt/dy*0.5*(ave_interfaceV1*i_flux(2:nx-1,2:ny-1) - ave_interfaceV2*A(2:nx-1,2:ny-1)); 
+    end %end of ray trace loop, x-direction
+    
+    for j=1:na %do all nx, ny at once
+        %Split the transport term into diffusion and advection terms
+        %Photon diffusion at nearly the speed of light
+        tau = (10*(dy)*(rho_a+rho_s)).^2; %Eq 14 in Jiang14
+        %Correct for division by zero 
+        for k=1:nx
+            for l=1:ny
+                if tau(k,l) > 0 
+                    alpha(k,l) = sqrt((1-exp(-tau(k,l)))./(tau(k,l)));
+                else
+                    alpha(k,l) = 1.0;
+                end
+            end
+        end
+        %Advection with the fluid only if there are material terms
+        advection_term = (3*nv(:,:,j).*J).*(abs(rho_a+rho_s)>0);
+
+        i_flux = upwind_interpolate2D_decoupled(mu(j,2)*(intensity(:,:,j) - advection_term/C),method,dt,dy,alpha*C, nx,ny,2);
+        B = circshift(i_flux,[0 -1]);
+        net_flux(2:nx-1,2:ny-1,j) = net_flux(2:nx-1,2:ny-1,j) + dt*C/dy*(i_flux(2:nx-1,2:ny-1) - B(2:nx-1,2:ny-1));
+        %should also turn off advection velocity if the projection along
+        %axis is zero in rare cases
+        %Also, should take into account velocity gradient between cells
+        advection_term = (mu(j,2)^2*3*J).*(abs(rho_a+rho_s)>0);
+        velocity_term = v(2:nx-1,2:ny-1,2) + mu(j,1)*v(2:nx-1,2:ny-1,1)/mu(j,2);
+        i_flux = upwind_interpolate2D_decoupled(advection_term, method, dt, dy,v(:,:,2) + mu(j,1)*v(:,:,1)/mu(j,2),nx,ny,2);
+        B = circshift(i_flux,[0 -1]);
+        
+        %ave_interfaceV1 = circshift(velocity_term,[0 +1]) + velocity_term;
+        %ave_interfaceV2 = velocity_term +circshift(velocity_term,[0 -1]);
+        net_flux(2:nx-1,2:ny-1,j) = net_flux(2:nx-1,2:ny-1,j) + ...
+            dt/dy*0.5*(ave_interfaceV1*i_flux(2:nx-1,2:ny-1) - ave_interfaceV2*B(2:nx-1,2:ny-1)); 
+    end %end of ray trace loop, y-direction
     %Substep 1.2: Estimate flow velocity at t= n+1/2
     new_velocity = zeros(nx,ny,2);
     for k=2:nx-1 %rays must be solved together
@@ -294,6 +289,12 @@ for i=0:nt
                 %Change fluid velocity?
             v(:,:,1) = GasMomentum(:,:,1)./density(:,:);
             v(:,:,2) = GasMomentum(:,:,2)./density(:,:);
+            %periodic boundary condtions
+            v(:,1,:) = v(:,ny-1,:);
+            v(:,ny,:) = v(:,2,:);
+            v(1,:,:) = v(nx-1,:,:);
+            v(nx,:,:) = v(2,:,:);
+
             [nv, vvnn, vCsquare, vsquare, absV] = update_velocity_terms(v,mu,C);
         %Substep #3: Implicitly advance the scattering source terms
     
