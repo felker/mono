@@ -275,28 +275,27 @@ for i=0:nt
                 end
             end
             %Explicitly update all other rays 
-%             intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1 + net_flux(k,l,na);
-%             intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1) + D(1:na-1) + squeeze(net_flux(k,l,1:na-1)); 
-            intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1;
-            intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1)*temp(k,l)^4 + D(1:na-1);
+            intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1; %+ net_flux(k,l,na);
+            intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1)*temp(k,l)^4 + D(1:na-1); %+ squeeze(net_flux(k,l,1:na-1)); 
 
             %v(k,l,:) = old_velocity(k,l,:); 
-            %Update gas quantities as it absorbs internal energy
-            %density?
+            GasKE(k,l) = 0.0;
+            for r=1:2
+                GasMomentum(k,l,r) = (density(k,l)*v(k,l,r));
+                GasKE(k,l) = GasKE(k,l) + 0.5*v(k,l,r).^2;
+            end
+            %Update gas quantities 
             %change in gas internal energy
             dGasTE = (density(k,l)*R/(adiabatic)*(temp(k,l) - temp_old));
             dGasMomentum = zeros(2,1);
             for r=1:2
-                for n=1:na
-                    dGasMomentum(r) = dGasMomentum(r) - P/C*(intensity(k,l,n) - I_old(n))*mu(n,r)*pw(n);                 
-                end
+                dGasMomentum(r) = -P/C*((mu(:,r).*pw(:))'*squeeze(intensity(k,l,:)) - (mu(:,r).*pw(:))'*I_old);
                 GasMomentum(k,l,r) = GasMomentum(k,l,r) + dGasMomentum(r);
             end
             dGasKE =((density(k,l)*squeeze(v(k,l,:)) + dGasMomentum)'*(density(k,l)*squeeze(v(k,l,:)) + dGasMomentum) - ...
                 (density(k,l)*squeeze(v(k,l,:)))'*(density(k,l)*squeeze(v(k,l,:))))/(2*density(k,l));
-            GasKE(k,l) = GasKE(k,l) +dGasKE;  
-            GasTE(k,l) = GasTE(k,l) +dGasTE;  
-            
+            GasKE(k,l) = GasKE(k,l) + dGasKE;  
+            GasTE(k,l) = GasTE(k,l) + dGasTE;  
          end
     end
     %Change fluid velocity?

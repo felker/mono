@@ -40,7 +40,7 @@ hi = subplot(3,1,3);
 plot(time_out(start_index:out_count),y_out(start_index:out_count,5)','--',time_out(start_index:out_count),y_out(start_index:out_count,6)','-');
 axis([0 0.1 4.5 7.5]);
 xlabel('time (s)');
-legend('E_tot','E_gas');
+legend('E_{tot}','E_{gas}');
 
 figure(2);
 axis([0 0.1 0.3 0.4]);
