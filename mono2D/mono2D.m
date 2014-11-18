@@ -290,8 +290,7 @@ for i=0:nt
             dGasKE =((density(k,l)*squeeze(v(k,l,:)) + dGasMomentum)'*(density(k,l)*squeeze(v(k,l,:)) + dGasMomentum) - ...
                 (density(k,l)*squeeze(v(k,l,:)))'*(density(k,l)*squeeze(v(k,l,:))))/(2*density(k,l));
             GasKE(k,l) = GasKE(k,l) +dGasKE;  
-            GasTE(k,l) = GasTE(k,l) +dGasTE;  
-            
+            GasTE(k,l) = GasTE(k,l) +dGasTE;             
         end
     end
                 %Change fluid velocity?

@@ -25,7 +25,7 @@ nt = 24;
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
-delta_c = 1e-10; %error tolerance for NR convergence
+delta_c = 1e-12; %error tolerance for NR convergence
 
 %------------------------ BOUNDARY CONDITIONS  ------------------ %
 %%% van Leer interpolation requires two bc 
@@ -87,7 +87,7 @@ intensity(:,:,:) = 1.00000/(4*pi);
 %Calculate Radiation CFL numbers
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 %set dt to have max cfl of 0.4
-dt = dt*0.1/max(cfl_mu);
+dt = dt*0.4/max(cfl_mu);
 %Recalculate radiation CFL
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 assert(min(abs(cfl_mu) <= ones(na,1))); 
@@ -195,7 +195,8 @@ for i=0:nt
     end    %end of ray trace loop, y-direction
     intensity = intensity - net_flux; 
         [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,c);
-    net_flux(nx/2,ny/2)
+        % is the source term update the only meaningful part of this test?
+    assert(max(max(max(net_flux))) ==0);
     
     %Substep 1.2: Estimate flow velocity at t= n+1/2
     new_velocity = zeros(nx,ny,2);
@@ -242,10 +243,14 @@ for i=0:nt
             J2 = dt*rho_a(k,l)*P*C*(1+vCsquare(k,l))/(4*pi*Jfactor);
             J3 = 2*P*J(k,l)/Jfactor + density(k,l)*R*temp_old/(4*pi*(adiabatic-1)*Jfactor); 
             
-            coef1 = 1 + dt*rho_a(k,l)*C*(1-nv(k,l,na)/C) + dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*A)'*pw/C;
-            coef2 = dt*rho_a(k,l)*C*(1+3*nv(k,l,na)/C)/(4*pi) - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*B)'*pw/C;
-            coef3 = intensity(k,l,na) - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*D)'*pw/C;
-            
+            coef1 = 1 + dt*rho_a(k,l)*C*(1-nv(k,l,na)/C); 
+            coef2 = dt*rho_a(k,l)*C*(1+3*nv(k,l,na)/C)/(4*pi); 
+            coef3 = intensity(k,l,na);
+            for r=1:na
+                coef1 = coef1 + dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r))*A(r))*pw(r)/C;
+                coef2 = coef2 - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r))*B(r))*pw(r)/C;
+                coef3 = coef3 - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*D(r))*pw(r)/C;
+            end
             Tcoef = coef1*J1;
             T4coef = coef1*J2;
             Tconst = coef1*J3;
@@ -253,7 +258,7 @@ for i=0:nt
             T4coef = T4coef - (coef1*B + coef2*A)'*pw;
             Tconst = Tconst - (coef1*D + coef3*A)'*pw;
 
-            Tmax = (0.5*density(k,l)*vsquare(k,l) +rad_energy(k,l))*(adiabatic -1.0)/(density(k,l)*R) + temp_old; 
+            Tmax = (0.5*density(k,l)*vsquare(k,l) + P*rad_energy(k,l))*(adiabatic -1.0)/(density(k,l)*R) + temp_old; 
 
             %ATHENA equilibrium function, and derivative
             if abs(T4coef) < 1e-16
@@ -273,9 +278,9 @@ for i=0:nt
 %             intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1 + net_flux(k,l,na);
 %             intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1) + D(1:na-1) + squeeze(net_flux(k,l,1:na-1)); 
             intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1;
-            intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1) + D(1:na-1);
+            intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1)*temp(k,l)^4 + D(1:na-1);
 
-            v(k,l,:) = old_velocity(k,l,:); 
+            %v(k,l,:) = old_velocity(k,l,:); 
             %Update gas quantities as it absorbs internal energy
             %density?
             %change in gas internal energy
@@ -297,7 +302,8 @@ for i=0:nt
     %Change fluid velocity?
     v(:,:,1) = GasMomentum(:,:,1)./density(:,:);
     v(:,:,2) = GasMomentum(:,:,2)./density(:,:);
-    %periodic boundary condtions, velocity
+    
+    %Update periodic boundary condtions, velocity
     for j=1:num_ghost
         v(:,js-j,:) = v(:,je+1-j,:);
         v(:,je+j,:) = v(:,js-1+j,:);
