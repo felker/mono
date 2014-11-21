@@ -1,4 +1,4 @@
-function [num_rays,direction_cosines,point_weights,level_weights] = angular_quad3D(N)
+function [num_rays,direction_cosines,point_weights,level_weights] = angular_quad2D(N)
 %Input:
 % N: Order of the quadrature = # of polar angles [0,pi] 
 % only defined for N <= 12

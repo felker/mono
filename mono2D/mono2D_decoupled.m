@@ -20,12 +20,12 @@ ly = 1.0;
 c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
-dt = 0.002;
-nt = 24;
+dt = 0.0025;
+nt = 40;
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
-delta_c = 1e-12; %error tolerance for NR convergence
+delta_c = 1e-14; %error tolerance for NR convergence
 
 %------------------------ BOUNDARY CONDITIONS  ------------------ %
 %%% van Leer interpolation requires two bc 
@@ -87,10 +87,12 @@ intensity(:,:,:) = 1.00000/(4*pi);
 %Calculate Radiation CFL numbers
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 %set dt to have max cfl of 0.4
-dt = dt*0.4/max(cfl_mu);
+dt = dt*1.0/max(cfl_mu);
 %Recalculate radiation CFL
 cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
 assert(min(abs(cfl_mu) <= ones(na,1))); 
+
+dt = 0.0025;
 
 %------------------------ VELOCITY TERMS ------------------------------ %
 [nv, vvnn, vCsquare, vsquare, absV] = update_velocity_terms(v,mu,C);
@@ -109,7 +111,6 @@ num_output = 8; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
 y_out = zeros(num_pts+1,num_output);
-
 %Explicit-Implicit operator splitting scheme
 %-------------------------------------------
 for i=0:nt
@@ -200,17 +201,53 @@ for i=0:nt
     
     %Substep 1.2: Estimate flow velocity at t= n+1/2
     new_velocity = zeros(nx,ny,2);
+%     for k=1:nx %rays must be solved together
+%         for l=1:ny
+%             for m=1:2
+%             vel_update = @(x) x - v(k,l,m) - 0.5*dt*P*(rho_a(k,l) + rho_s(k,l))*(C/P*v(k,l,m) + ...
+%                 rad_flux(k,l,m)./density(k,l) - C/P*x - ...
+%                 x./(C*density(k,l))*(rad_energy(k,l) + rad_pressure(k,l,m,m)));
+%             new_velocity(k,l,m) = fzero(vel_update, v(k,l,m));
+%             end
+%         end
+%     end
+%alternatively....
     for k=1:nx %rays must be solved together
         for l=1:ny
             for m=1:2
-            vel_update = @(x) x - v(k,l,m) - 0.5*dt*P*(rho_a(k,l) + rho_s(k,l))*(C/P*v(k,l,m) + ...
-                rad_flux(k,l,m)./density(k,l) - C/P*x - ...
-                x./(C*density(k,l))*(rad_energy(k,l) + rad_pressure(k,l,m,m)));
-            new_velocity(k,l,m) = fzero(vel_update, v(k,l,m));
+            new_velocity(k,l,m) = 1/(density(k,l) + 0.5*dt*P*(rho_a(k,l) + rho_s(k,l))*C/P*density(k,l) + 0.5*dt*P*(rho_a(k,l) + rho_s(k,l))*(rad_energy(k,l) + rad_pressure(k,l,m,m))/C)*...
+                (density(k,l)*v(k,l,m) + 0.5*dt*P*(rho_a(k,l) + rho_s(k,l))*(C/P*density(k,l)*v(k,l,m) + rad_flux(k,l,m)));
             end
         end
     end
-    old_velocity = v; 
+    
+%COPIED FROM ATHENA, only for the case with vz=0
+%     dt = 0.5*dt;
+%     for k=1:nx
+%         for l=1:ny
+%             M0 = zeros(3,1);
+%             RHS = zeros(3,1);
+%             M0(1) = P* rad_flux(k,l,1)/C + GasMomentum(k,l,1);
+%             M0(2) = P* rad_flux(k,l,2)/C + GasMomentum(k,l,2);
+%             M0(3) = 0;
+%             rho = density(k,l);
+%             Vx11 = rho*(1.0+dt*rho_a(k,l)*C) + P*dt *rho_a(k,l)*(rad_energy(k,l) +rad_pressure(k,l,1,1))/C;
+%             Vx12 = dt*P*rho_a(k,l)*rad_pressure(k,l,1,2)/C;
+%             Vx13 = 0;
+%             Vy11 = rho*(1.0 + dt*rho_a(k,l)*C) + P*dt*rho_a(k,l)*(rad_energy(k,l) + rad_pressure(k,l,2,2))/C;
+%             Vy12 = 0;
+%             Vz11 = rho*(1.0 +dt*rho_a(k,l)*C);
+%             RHS(1) = GasMomentum(k,l,1) + dt*M0(1)*C*rho_a(k,l);
+%             RHS(2) = GasMomentum(k,l,2) + dt*M0(2)*C*rho_a(k,l);
+%             RHS(3) = 0;
+%             factor = Vx11 * Vy11 * Vz11 - Vy11 * Vx13 * Vx13 + 2.0 * Vx12 * Vx13 * Vy12 - Vx11 * Vy12 * Vy12 - Vx12 * Vx12 * Vz11;
+%             factor = 1.0/factor;
+%             new_velocity(k,l,1) = factor * (RHS(3) * (Vx12 * Vy12 - Vx13 * Vy11) + RHS(2)*(Vy12 * Vx13 - Vx12 * Vz11) + RHS(1)*(Vy11 * Vz11 - Vy12 * Vy12));
+%             new_velocity(k,l,2) = factor * (RHS(3) * (Vx12 * Vx13 - Vx11 * Vy12) + RHS(2)*(Vx11 * Vz11 - Vx13 * Vx13) + RHS(1) * (Vx13 * Vy12 - Vx12 * Vz11));
+%         end
+%     end
+%     dt= 2*dt;
+    old_velocity = v;
     v = new_velocity;
     [nv, vvnn, vCsquare, vsquare, absV] = update_velocity_terms(v,mu,C);
     %Substep #2: Implicitly advance the absorption source terms at each
@@ -249,7 +286,7 @@ for i=0:nt
             for r=1:na
                 coef1 = coef1 + dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r))*A(r))*pw(r)/C;
                 coef2 = coef2 - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r))*B(r))*pw(r)/C;
-                coef3 = coef3 - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r)).*D(r))*pw(r)/C;
+                coef3 = coef3 - dt*rho_a(k,l)*((vsquare(k,l) + vvnn(k,l,r))*D(r))*pw(r)/C;
             end
             Tcoef = coef1*J1;
             T4coef = coef1*J2;
@@ -277,19 +314,15 @@ for i=0:nt
             %Explicitly update all other rays 
             intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1; %+ net_flux(k,l,na);
             intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1)*temp(k,l)^4 + D(1:na-1); %+ squeeze(net_flux(k,l,1:na-1)); 
+            %Revert to velocity at the beginning of the timestep
+             v(k,l,:) = old_velocity(k,l,:); 
 
-            %v(k,l,:) = old_velocity(k,l,:); 
-            GasKE(k,l) = 0.0;
-            for r=1:2
-                GasMomentum(k,l,r) = (density(k,l)*v(k,l,r));
-                GasKE(k,l) = GasKE(k,l) + 0.5*v(k,l,r).^2;
-            end
             %Update gas quantities 
             %change in gas internal energy
-            dGasTE = (density(k,l)*R/(adiabatic)*(temp(k,l) - temp_old));
+            dGasTE = (density(k,l)*R/(adiabatic-1)*(temp(k,l) - temp_old));
             dGasMomentum = zeros(2,1);
-            for r=1:2
-                dGasMomentum(r) = -P/C*((mu(:,r).*pw(:))'*squeeze(intensity(k,l,:)) - (mu(:,r).*pw(:))'*I_old);
+            for r=1:2 %4pi factor?? why isnt that in the paper??
+                dGasMomentum(r) = -P/C*4*pi*((mu(:,r).*pw(:))'*squeeze(intensity(k,l,:)) - (mu(:,r).*pw(:))'*I_old);
                 GasMomentum(k,l,r) = GasMomentum(k,l,r) + dGasMomentum(r);
             end
             dGasKE =((density(k,l)*squeeze(v(k,l,:)) + dGasMomentum)'*(density(k,l)*squeeze(v(k,l,:)) + dGasMomentum) - ...
@@ -298,10 +331,9 @@ for i=0:nt
             GasTE(k,l) = GasTE(k,l) + dGasTE;  
          end
     end
-    %Change fluid velocity?
+    %Update fluid velocity
     v(:,:,1) = GasMomentum(:,:,1)./density(:,:);
     v(:,:,2) = GasMomentum(:,:,2)./density(:,:);
-    
     %Update periodic boundary condtions, velocity
     for j=1:num_ghost
         v(:,js-j,:) = v(:,je+1-j,:);
