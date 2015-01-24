@@ -21,7 +21,7 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.0025;
-nt = 40;
+nt = 340;
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
@@ -73,7 +73,7 @@ P = a_r*T_0^4/P_0;  %measure of relative importance of rad and gas pressure
 %For 2D and verification of Jiang14, we no longer use the source function
 %or extinction probability 
 %Absorption opacities
-rho_a = 100*ones(nx,ny);
+rho_a = ones(nx,ny);
 %Scattering opacities
 rho_s = zeros(nx,ny);
 %Fluid density, temperature
@@ -106,7 +106,7 @@ for i=1:2
 end
 
 %------------------------ OUTPUT VARIABLES------------------------------ %
-output_interval = 2; 
+output_interval = 20; 
 num_output = 8; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
@@ -312,8 +312,8 @@ for i=0:nt
                 end
             end
             %Explicitly update all other rays 
-            intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1; %+ net_flux(k,l,na);
-            intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1)*temp(k,l)^4 + D(1:na-1); %+ squeeze(net_flux(k,l,1:na-1)); 
+            intensity(k,l,na) = (coef2*temp(k,l)^4 + coef3)/coef1 + net_flux(k,l,na);
+            intensity(k,l,1:na-1) = A(1:na-1)*intensity(k,l,na) + B(1:na-1)*temp(k,l)^4 + D(1:na-1) + squeeze(net_flux(k,l,1:na-1)); 
             %Revert to velocity at the beginning of the timestep
              v(k,l,:) = old_velocity(k,l,:); 
 

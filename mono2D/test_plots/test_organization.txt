@@ -1,0 +1,9 @@
+I currently have two main solvers:
+
+mono2D_relativistic: This special relativistic solver makes no v/c approximations and solves the formulation of the time-dependent RTE 
+
+mono2D_decoupled: Solves time dependent RTE to O(v/c) with some (v/c)^2 correction terms in the style of Lowrie. My solver is a duplicate of the Jiang, et al 2014 publication. Currently does not implement scattering terms.  
+
+Tests folder is divided first by solver, and then by type of test. Changes is parameters are indicated in the title of the file. 
+
+Comparisons between the two solvers are located in a separate top-level directory. 
