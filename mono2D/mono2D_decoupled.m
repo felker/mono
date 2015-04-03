@@ -21,7 +21,7 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.0025;
-nt = 340;
+nt = 32;
 %Upwind monotonic interpolation scheme
 method = 'van Leer'; 
 time_centering = 0; %explicit = 0, implicit = 1, CN=1/2
@@ -73,14 +73,14 @@ P = a_r*T_0^4/P_0;  %measure of relative importance of rad and gas pressure
 %For 2D and verification of Jiang14, we no longer use the source function
 %or extinction probability 
 %Absorption opacities
-rho_a = ones(nx,ny);
+rho_a = zeros(nx,ny);
 %Scattering opacities
 rho_s = zeros(nx,ny);
 %Fluid density, temperature
 density = ones(nx,ny);
 temp = ones(nx,ny); 
 
-v(:,:,1) = 0.3*C; 
+v(:,:,1) = 0.0*C; 
 intensity(:,:,:) = 1.00000/(4*pi); 
 
 %------------------------ PRE-TIMESTEPPING SETUP ------------------ %
@@ -106,7 +106,7 @@ for i=1:2
 end
 
 %------------------------ OUTPUT VARIABLES------------------------------ %
-output_interval = 20; 
+output_interval = 2; 
 num_output = 8; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
@@ -120,7 +120,7 @@ for i=0:nt
     [J,H,K,rad_energy,rad_flux,rad_pressure] = update_moments(intensity,mu,pw,c);
     photon_momentum = P*rad_flux/C;
     if ~mod(i,output_interval)
-        [y_out] = time_series_output(y_out,time_out,rad_energy,rad_flux,rad_pressure,v,nx,ny,C,GasMomentum,GasKE,GasTE,photon_momentum);
+        [y_out] = time_series_output(y_out,time_out,rad_energy,rad_flux,rad_pressure,v,vCsquare,nx,ny,C,GasMomentum,GasKE,GasTE,photon_momentum);
     end
 
     %Box periodic boundary conditions
@@ -183,7 +183,7 @@ for i=0:nt
          %Advection with the fluid only if there are material terms
         advection_term = (3*nv(:,:,j).*J).*(abs(rho_a+rho_s)>0);
         i_flux = upwind_interpolate2D_decoupledV2(mu(j,2)*(intensity(:,:,j) - advection_term/C),method,dt,dy,alpha*C*sign(mu(j,2)),is,ie+1,js,je+1,2);
-        net_flux(is:ie,js:je,j) = dt*C/dy*(i_flux(is:ie,js+1:je+1) - i_flux(is:ie,js:je));
+        net_flux(is:ie,js:je,j) = net_flux(is:ie,js:je,j) + dt*C/dy*(i_flux(is:ie,js+1:je+1) - i_flux(is:ie,js:je));
         %should also turn off advection velocity if the projection along
         %axis is zero in rare cases
         %Also, should take into account velocity gradient between cells
