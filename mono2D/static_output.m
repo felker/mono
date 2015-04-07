@@ -47,9 +47,9 @@ function [] = static_output()
 for i=1:na
     if sqrt(1-mu(i,1)^2 -mu(i,2)^2)> 0.5
         %mu_z = 0.88
-        quiver(0,0,intensity(nx/2,ny/2,i).*mu(i,1), intensity(nx/2,ny/2,i).*mu(i,2),'-b','ShowArrowHead','off');
+        quiver(0,0,intensity(nx/2,ny/2,i).*mu(i,1), intensity(nx/2,ny/2,i).*mu(i,2),0,'-b','ShowArrowHead','off');
     else
-        quiver(0,0,intensity(nx/2,ny/2,i).*mu(i,1), intensity(nx/2,ny/2,i).*mu(i,2),'-k','ShowArrowHead','off');
+        quiver(0,0,intensity(nx/2,ny/2,i).*mu(i,1), intensity(nx/2,ny/2,i).*mu(i,2),0,'-k','ShowArrowHead','off');
     end
 hold on;
 end
